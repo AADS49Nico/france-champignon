@@ -11033,30 +11033,50 @@ function GestionPostes({ postes, setPostes }) {
   const [showManageLists, setShowManageLists] = useState(false);
   useEffect(()=>{ try { window.localStorage.setItem("aads_macros_list", JSON.stringify(macrosList)); } catch(e) {} }, [macrosList]);
   useEffect(()=>{ try { window.localStorage.setItem("aads_types_list", JSON.stringify(typesList)); } catch(e) {} }, [typesList]);
+  // Persistance en base (partagee entre appareils/techniciens) des listes macro/types.
+  function saveListesPostes(macros, types) {
+    var payload = { macros: macros, types: types };
+    sbFetch("config_logos?id=eq.main", "PATCH", { listes_postes: payload }, { Prefer:"return=representation" })
+      .then(function(r){ if (!r || (Array.isArray(r) && r.length === 0)) { sbFetch("config_logos", "POST", { id:"main", listes_postes: payload }, { Prefer:"resolution=merge-duplicates" }).catch(function(){}); } })
+      .catch(function(){});
+  }
+  useEffect(function(){
+    sbFetch("config_logos?id=eq.main","GET").then(function(data){
+      if (data && data.length>0 && data[0].listes_postes) {
+        var lp = data[0].listes_postes;
+        if (lp && Array.isArray(lp.macros) && lp.macros.length) { setMacrosList(lp.macros); try { window.localStorage.setItem("aads_macros_list", JSON.stringify(lp.macros)); } catch(e){} }
+        if (lp && Array.isArray(lp.types) && lp.types.length) { setTypesList(lp.types); try { window.localStorage.setItem("aads_types_list", JSON.stringify(lp.types)); } catch(e){} }
+      }
+    }).catch(function(){});
+  }, []);
 
   function addMacro(value, applyTo) {
     const v = value.trim();
     if (!v || macrosList.includes(v)) return;
-    setMacrosList(prev => [...prev.filter(m=>m!=="Autres"), v, "Autres"]);
+    const next = [...macrosList.filter(m=>m!=="Autres"), v, "Autres"];
+    setMacrosList(next); saveListesPostes(next, typesList);
     if (applyTo === "new") setNewP(p=>({...p, macro:v}));
     if (applyTo === "edit") setEditData(d=>({...d, macro:v}));
     setNewMacroInput("");
   }
   function removeMacro(v) {
     if (!window.confirm("Supprimer \""+v+"\" de la liste des macro-zones ?")) return;
-    setMacrosList(prev => prev.filter(m=>m!==v));
+    const next = macrosList.filter(m=>m!==v);
+    setMacrosList(next); saveListesPostes(next, typesList);
   }
   function addType(value, applyTo) {
     const v = value.trim();
     if (!v || typesList.includes(v)) return;
-    setTypesList(prev => [...prev.filter(t=>t!=="Autre"), v, "Autre"]);
+    const next = [...typesList.filter(t=>t!=="Autre"), v, "Autre"];
+    setTypesList(next); saveListesPostes(macrosList, next);
     if (applyTo === "new") setNewP(p=>({...p, type:v}));
     if (applyTo === "edit") setEditData(d=>({...d, type:v}));
     setNewTypeInput("");
   }
   function removeType(v) {
     if (!window.confirm("Supprimer \""+v+"\" de la liste des types ?")) return;
-    setTypesList(prev => prev.filter(t=>t!==v));
+    const next = typesList.filter(t=>t!==v);
+    setTypesList(next); saveListesPostes(macrosList, next);
   }
 
   function addPoste() {
