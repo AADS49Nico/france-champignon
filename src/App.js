@@ -2942,7 +2942,9 @@ function Conformite() {
     const dateFmt = draft.date && draft.date.includes("-") ? draft.date.split("-").reverse().join("/") : draft.date;
     const updated = {...draft, date: dateFmt};
     setCriteres(prev => prev.map(c => c.ref === editing ? updated : c));
-    sbUpdate("conformite_ifs", editing, { libelle:updated.libelle, statut:updated.statut, date:updated.date||"" });
+    // Upsert (cree ou met a jour) : plus robuste qu un PATCH si la ligne n existe
+    // pas encore pour ce site.
+    sbUpsert("conformite_ifs", { id: editing, contrat: CLIENT_CONFIG.contrat, ref: updated.ref||editing, libelle:updated.libelle, statut:updated.statut, date:updated.date||"" });
     setEditing(null);
   }
   function deleteCritere(ref) {
