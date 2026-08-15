@@ -758,6 +758,25 @@ export function estConsoPartielle(v) {
 export function estConsoQuelconque(v) {
   return estConsoTotale(v) || estConsoPartielle(v);
 }
+// Couleur d une consommation d appat selon les seuils configures (meme logique
+// que le plan) : vert si aucune conso, orange a partir du seuil orange, rouge a
+// partir du seuil rouge. Renvoie null si la valeur n est pas une consommation.
+export function couleurConsoParSeuil(etat, seuils) {
+  const consoOrange = (seuils && seuils.rongeurs && seuils.rongeurs.conso_orange) || "25%";
+  const consoRouge  = (seuils && seuils.rongeurs && seuils.rongeurs.conso_rouge)  || "75%";
+  function idx(n) {
+    if (estConsoTotale(n)) return 4;
+    if (n === "75%") return 3;
+    if (n === "50%") return 2;
+    if (n === "25%" || n === "CONSOMMATION PARTIELLE") return 1;
+    return 0;
+  }
+  const e = idx(etat);
+  if (e <= 0) return null;
+  if (e >= idx(consoRouge)) return "#ef4444";
+  if (e >= idx(consoOrange)) return "#f59e0b";
+  return "#22c55e";
+}
 // Classification exterieur/interieur d un poste : la colonne type (RE/RI) fait foi ;
 // a defaut seulement (ancien poste sans type), on retombe sur la regex de l identifiant.
 function posteEstExt(p) {
@@ -1956,9 +1975,22 @@ function Cartographie({ seuilsGlobaux }) {
       const s = seuilsDyn[nuisible];
       return s ? (num >= s.critique ? "#ef4444" : num >= s.vigilance ? "#f59e0b" : "#22c55e") : "#22c55e";
     }
-    if (estConsoTotale(v)) return "#ef4444";
-    if (v === "CONSOMMATION PARTIELLE") return "#f59e0b";
-    if (v === "75%" || v === "50%" || v === "25%") return "#f59e0b";
+    // Consommation rongeurs : on colore selon le POURCENTAGE REEL (p.infos),
+    // car p.passages[d] a perdu le % ("CONSOMMATION PARTIELLE"). La couleur
+    // suit alors les seuils, exactement comme le plan.
+    const info = (p.infos||{})[d];
+    if (info && info.type) {
+      const etatReel = info.type==="totale" ? "100%"
+                     : info.type==="partielle" ? (info.valeur || "CONSOMMATION PARTIELLE")
+                     : "";
+      const cc = couleurConsoParSeuil(etatReel, seuilsGlobaux);
+      if (cc) return cc;
+      if (info.type === "cap") return "#f59e0b";
+      if (info.type === "num" && parseFloat(info.valeur) > 0) return "#f59e0b";
+      return "#22c55e";
+    }
+    const cc2 = couleurConsoParSeuil(v, seuilsGlobaux);
+    if (cc2) return cc2;
     if (v && !isNaN(parseFloat(v)) && parseFloat(v) > 0) return "#f59e0b";
     return "#22c55e";
   }
@@ -7287,8 +7319,9 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
     const nuisible = p.nuisible||"Rongeurs";
     if (nuisible==="Rongeurs") {
       const total = (parseInt(s.cap_souris||0))+(parseInt(s.cap_ratBrun||0))+(parseInt(s.cap_ratNoir||0));
-      if (total >= seuils.rongeurs.capture_rouge || estConsoTotale(s.etat) || s.etat==="75%") return "#ef4444";
-      if (estConsoPartielle(s.etat)) return "#f59e0b";
+      if (total >= seuils.rongeurs.capture_rouge) return "#ef4444";
+      const cc = couleurConsoParSeuil(s.etat, seuils);
+      if (cc) return cc;
       return "#22c55e";
     }
     if (nuisible==="Blattes") {
