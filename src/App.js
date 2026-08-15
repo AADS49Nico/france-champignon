@@ -773,6 +773,20 @@ function posteEstInt(p) {
   var id = (p && p.id) || "";
   return /^(RI|R\d|S\d)/i.test(id) && !/^RE/i.test(id);
 }
+// Liste (texte) des molecules toxiques utilisees sur un ensemble de postes,
+// d apres les passages (champ molecule des saisies) et molecule_actuelle.
+function moleculesToxiquesTexte(passages, postesRongeurs) {
+  var ids = {}; (postesRongeurs||[]).forEach(function(p){ ids[p.id] = 1; });
+  var set = {};
+  (passages||[]).forEach(function(pa){
+    if (pa.type === "Insectes volants") return;
+    var s = typeof pa.saisies === "string" ? (function(){ try { return JSON.parse(pa.saisies||"{}"); } catch(e){ return {}; } })() : (pa.saisies||{});
+    Object.keys(s).forEach(function(id){ if(!ids[id]) return; var m = s[id] && s[id].molecule; if(m && m!=="Placebo" && m!=="Non toxique") set[m] = 1; });
+  });
+  (postesRongeurs||[]).forEach(function(p){ if(p.molecule_actuelle && p.molecule_actuelle!=="Placebo") set[p.molecule_actuelle] = 1; });
+  var arr = Object.keys(set);
+  return arr.length ? arr.join(", ") : "";
+}
 
 // Couleur d un poste selon son type et ses seuils (meme logique que les pastilles
 // du plan) : "rouge" (seuil critique), "orange" (seuil vigilance) ou "vert".
@@ -3884,13 +3898,14 @@ function TauxActiviteChart({ passages, postes }) {
 
     const typeLabel = typeFilter==="RE"?"Rongeurs exterieurs":typeFilter==="RI"?"Rongeurs interieurs":"Tous rongeurs";
     const macroLabel = (macroFilter && macroFilter!=="Toutes") ? " - Zone macro : "+macroFilter : "";
+    const molTox = moleculesToxiquesTexte(passages, postesRongeurs);
     const rows = statsParAnnee.map(function(sa){
       return sa.stats.map(function(x){ return "<tr><td>"+MOIS_LABELS[x.mois]+" "+sa.annee+"</td><td style='font-weight:700'>"+x.tauxActivite+"%</td><td>"+x.actifs+"/"+x.total+"</td></tr>"; }).join("");
     }).join("");
 
     exportHTML("Taux activite rongeurs - "+CLIENT_CONFIG.nom,
       "<h1>Taux d'activité - "+typeLabel+macroLabel+"</h1>"+
-      "<p style='color:#6b7280;margin-bottom:16px'>"+CLIENT_CONFIG.nom+" - "+new Date().toLocaleDateString("fr-FR")+"</p>"+
+      "<p style='color:#6b7280;margin-bottom:16px'>"+CLIENT_CONFIG.nom+" - "+new Date().toLocaleDateString("fr-FR")+(molTox?" &middot; Molécules toxiques : "+molTox:"")+"</p>"+
       svgTaux+
       "<table style='width:100%;border-collapse:collapse;margin-top:16px'><thead><tr><th>Mois</th><th>Taux</th><th>Postes actifs</th></tr></thead><tbody>"+rows+"</tbody></table>"
     );
@@ -4252,11 +4267,12 @@ function CapturesChart({ passages, postes }) {
 
     const typeLabel = typeFilter==="RE"?"Rongeurs exterieurs":typeFilter==="RI"?"Rongeurs interieurs":"Tous rongeurs";
     const macroLabel = (macroFilter && macroFilter!=="Toutes") ? " - Zone macro : "+macroFilter : "";
+    const molTox = moleculesToxiquesTexte(passages, postesRongeurs);
     const rows = stats.map(s=>"<tr><td>"+s.date+"</td><td style='font-weight:700'>"+s.captures+"</td></tr>").join("");
 
     exportHTML("Captures rongeurs - "+CLIENT_CONFIG.nom,
       "<h1>Captures rongeurs - "+typeLabel+macroLabel+"</h1>"+
-      "<p style='color:#6b7280;margin-bottom:16px'>"+CLIENT_CONFIG.nom+" - "+new Date().toLocaleDateString("fr-FR")+"</p>"+
+      "<p style='color:#6b7280;margin-bottom:16px'>"+CLIENT_CONFIG.nom+" - "+new Date().toLocaleDateString("fr-FR")+(molTox?" &middot; Molécules toxiques : "+molTox:"")+"</p>"+
       svgCap+
       "<table style='width:100%;border-collapse:collapse;margin-top:16px'><thead><tr><th>Date</th><th>Captures</th></tr></thead><tbody>"+rows+"</tbody></table>"
     );
@@ -4505,11 +4521,12 @@ function PostesTouchesChart({ passages, postes }) {
 
     const typeLabel = typeFilter==="RE"?"Rongeurs exterieurs":typeFilter==="RI"?"Rongeurs interieurs":"Tous rongeurs";
     const macroLabel = (macroFilter && macroFilter!=="Toutes") ? " - Zone macro : "+macroFilter : "";
+    const molTox = moleculesToxiquesTexte(passages, postesRongeurs);
     const rows = stats.map(s=>"<tr><td>"+s.date+"</td><td style='font-weight:700'>"+s.touches+" / "+totalPostes+"</td></tr>").join("");
 
     exportHTML("Postes rongeurs touchés - "+CLIENT_CONFIG.nom,
       "<h1>Postes rongeurs touchés - "+typeLabel+macroLabel+"</h1>"+
-      "<p style='color:#6b7280;margin-bottom:16px'>"+CLIENT_CONFIG.nom+" - "+new Date().toLocaleDateString("fr-FR")+"</p>"+
+      "<p style='color:#6b7280;margin-bottom:16px'>"+CLIENT_CONFIG.nom+" - "+new Date().toLocaleDateString("fr-FR")+(molTox?" &middot; Molécules toxiques : "+molTox:"")+"</p>"+
       svgChart+
       "<table style='width:100%;border-collapse:collapse;margin-top:16px'><thead><tr><th>Date</th><th>Postes rongeurs touchés</th></tr></thead><tbody>"+rows+"</tbody></table>"
     );
