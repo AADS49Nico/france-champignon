@@ -1024,7 +1024,7 @@ function Dashboard({ onNav, reinterventions, onLogoClick, onParamsClick, passage
       }).catch(()=>{});
     }
     sbGet("postes").then(data => {
-      if (data && data.length > 0) { setPostesTotal(data.length); setPostesListe(data); }
+      if (data && data.length > 0) { var actifs = data.filter(function(p){ return p.statut !== "Désactivé"; }); setPostesTotal(actifs.length); setPostesListe(actifs); }
     }).catch(()=>{});
     sbGet("maintenance_deiv_interventions").then(data => {
       if (data && data.length > 0) setNbMaintenancesDeiv(data.length);
@@ -5913,6 +5913,8 @@ function Statistiques() {
   const MACROS_ALL    = ["Toutes",...MACROS];
   const MOIS_LABELS   = ["Jan.","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Dec"];
   const CATS_IV = ["Moucherons","Mouches","Moustiques","Hyménoptères","Lépidoptères","Coléoptères","Punaises","Tipules"];
+  // Postes actifs : on exclut les postes desactives de toutes les stats/graphes.
+  const postesActifs = postes.filter(p => p.statut !== "Désactivé");
 
   useEffect(() => {
     sbGet("passages").then(data => { if (data && data.length > 0) setPassages(data); }).catch(()=>{});
@@ -6045,34 +6047,34 @@ function Statistiques() {
         <div id="tendances-export-zone">
           {/* Taux d activite - composant autonome avec ses propres filtres */}
           <div className="export-card-block">
-            <TauxActiviteChart passages={passages} postes={postes} />
+            <TauxActiviteChart passages={passages} postes={postesActifs} />
           </div>
 
           {/* Postes touchés - composant autonome avec ses propres filtres */}
           <div className="export-card-block">
-            <PostesTouchesChart passages={passages} postes={postes} />
+            <PostesTouchesChart passages={passages} postes={postesActifs} />
           </div>
 
           {/* Captures - composant autonome avec ses propres filtres */}
           <div className="export-card-block">
-            <CapturesChart passages={passages} postes={postes} />
+            <CapturesChart passages={passages} postes={postesActifs} />
           </div>
           <div className="export-card-block">
-            <ToxiquePlaceboChart passages={passages} postes={postes} />
+            <ToxiquePlaceboChart passages={passages} postes={postesActifs} />
           </div>
           <div className="export-card-block">
-            <MoleculesChart passages={passages} postes={postes} />
+            <MoleculesChart passages={passages} postes={postesActifs} />
           </div>
 
           {/* Graphes avances */}
           <div className="export-card-block"><DeivEvolutionStandaloneChart passages={passages} /></div>
-          <div className="export-card-block"><TeignesEvolutionChart passages={passages} postes={postes} /></div>
-          <div className="export-card-block"><DeivParAppareilChart passages={passages} postes={postes} /></div>
+          <div className="export-card-block"><TeignesEvolutionChart passages={passages} postes={postesActifs} /></div>
+          <div className="export-card-block"><DeivParAppareilChart passages={passages} postes={postesActifs} /></div>
           <div className="export-card-block"><ReinterPassagesChart passages={passages} reinterventions={reinterventions} /></div>
-          <div className="export-card-block"><Top10PostesChart passages={passages} postes={postes} /></div>
+          <div className="export-card-block"><Top10PostesChart passages={passages} postes={postesActifs} /></div>
           <div className="export-card-block"><PassagesParAnneeChart passages={passages} reinterventions={reinterventions} /></div>
           <div className="export-card-block"><PlanActionsPieChart actions={actions} /></div>
-          <div className="export-card-block"><PostesNuisiblePieChart postes={postes} /></div>
+          <div className="export-card-block"><PostesNuisiblePieChart postes={postesActifs} /></div>
         </div>
       )}
     </div>
@@ -11036,7 +11038,7 @@ function Desinsectisation() {
 }
 
 function GestionPostes({ postes, setPostes }) {
-  const STATUTS_POSTES = ["Actif", "Disparu", "Inaccessible", "Abimé"];
+  const STATUTS_POSTES = ["Actif", "Disparu", "Inaccessible", "Abimé", "Désactivé"];
   const NUISIBLES_P  = ["Rongeurs","Blattes","Insectes volants","Teignes","IPS"];
   const [search, setSearch]         = useState("");
   const [filterMacro, setFilterMacro] = useState("Toutes");
