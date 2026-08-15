@@ -3883,12 +3883,13 @@ function TauxActiviteChart({ passages, postes }) {
     const svgTaux = "<svg width='"+W2+"' height='"+H2+"' xmlns='http://www.w3.org/2000/svg' style='background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb'>"+seuilsSvg+moisSvg+seriesSvg+legendeSvg+"</svg>";
 
     const typeLabel = typeFilter==="RE"?"Rongeurs exterieurs":typeFilter==="RI"?"Rongeurs interieurs":"Tous rongeurs";
+    const macroLabel = (macroFilter && macroFilter!=="Toutes") ? " - Zone macro : "+macroFilter : "";
     const rows = statsParAnnee.map(function(sa){
       return sa.stats.map(function(x){ return "<tr><td>"+MOIS_LABELS[x.mois]+" "+sa.annee+"</td><td style='font-weight:700'>"+x.tauxActivite+"%</td><td>"+x.actifs+"/"+x.total+"</td></tr>"; }).join("");
     }).join("");
 
     exportHTML("Taux activite rongeurs - "+CLIENT_CONFIG.nom,
-      "<h1>Taux d'activité - "+typeLabel+"</h1>"+
+      "<h1>Taux d'activité - "+typeLabel+macroLabel+"</h1>"+
       "<p style='color:#6b7280;margin-bottom:16px'>"+CLIENT_CONFIG.nom+" - "+new Date().toLocaleDateString("fr-FR")+"</p>"+
       svgTaux+
       "<table style='width:100%;border-collapse:collapse;margin-top:16px'><thead><tr><th>Mois</th><th>Taux</th><th>Postes actifs</th></tr></thead><tbody>"+rows+"</tbody></table>"
@@ -4250,10 +4251,11 @@ function CapturesChart({ passages, postes }) {
     const svgCap = "<svg width='"+W2+"' height='"+H2+"' xmlns='http://www.w3.org/2000/svg' style='background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb'>"+barsSvg+"</svg>";
 
     const typeLabel = typeFilter==="RE"?"Rongeurs exterieurs":typeFilter==="RI"?"Rongeurs interieurs":"Tous rongeurs";
+    const macroLabel = (macroFilter && macroFilter!=="Toutes") ? " - Zone macro : "+macroFilter : "";
     const rows = stats.map(s=>"<tr><td>"+s.date+"</td><td style='font-weight:700'>"+s.captures+"</td></tr>").join("");
 
     exportHTML("Captures rongeurs - "+CLIENT_CONFIG.nom,
-      "<h1>Captures rongeurs - "+typeLabel+"</h1>"+
+      "<h1>Captures rongeurs - "+typeLabel+macroLabel+"</h1>"+
       "<p style='color:#6b7280;margin-bottom:16px'>"+CLIENT_CONFIG.nom+" - "+new Date().toLocaleDateString("fr-FR")+"</p>"+
       svgCap+
       "<table style='width:100%;border-collapse:collapse;margin-top:16px'><thead><tr><th>Date</th><th>Captures</th></tr></thead><tbody>"+rows+"</tbody></table>"
@@ -4502,10 +4504,11 @@ function PostesTouchesChart({ passages, postes }) {
     const svgChart = "<svg width='"+W2+"' height='"+H2+"' xmlns='http://www.w3.org/2000/svg' style='background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb'>"+totalLineSvg+barsSvg+"</svg>";
 
     const typeLabel = typeFilter==="RE"?"Rongeurs exterieurs":typeFilter==="RI"?"Rongeurs interieurs":"Tous rongeurs";
+    const macroLabel = (macroFilter && macroFilter!=="Toutes") ? " - Zone macro : "+macroFilter : "";
     const rows = stats.map(s=>"<tr><td>"+s.date+"</td><td style='font-weight:700'>"+s.touches+" / "+totalPostes+"</td></tr>").join("");
 
     exportHTML("Postes rongeurs touchés - "+CLIENT_CONFIG.nom,
-      "<h1>Postes rongeurs touchés - "+typeLabel+"</h1>"+
+      "<h1>Postes rongeurs touchés - "+typeLabel+macroLabel+"</h1>"+
       "<p style='color:#6b7280;margin-bottom:16px'>"+CLIENT_CONFIG.nom+" - "+new Date().toLocaleDateString("fr-FR")+"</p>"+
       svgChart+
       "<table style='width:100%;border-collapse:collapse;margin-top:16px'><thead><tr><th>Date</th><th>Postes rongeurs touchés</th></tr></thead><tbody>"+rows+"</tbody></table>"
