@@ -6499,6 +6499,7 @@ function PlanActions() {
   const [filter, setFilter] = useState("Toutes");
   const [filterAnneeTable, setFilterAnneeTable] = useState("Toutes");
   const [filterMoisTable, setFilterMoisTable] = useState("Tous");
+  const [filterAnneeStats, setFilterAnneeStats] = useState(String(new Date().getFullYear())); // annee des graphes 5M/zone (par defaut : annee en cours)
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [lightbox, setLightbox] = useState(null);
@@ -6637,6 +6638,9 @@ function PlanActions() {
   const filteredByStatut = filter === "Toutes" ? actions : actions.filter(a => a.statut === filter);
   const pdFilter = d => { if(!d) return new Date(0); const p=(d||"").split("/"); return p.length===3?new Date(p[2]+"-"+p[1]+"-"+p[0]):new Date(d); };
   const anneesDispoTable = [...new Set(actions.map(a=>{ const d=pdFilter(a.dateDetection); return d&&!isNaN(d)?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>b-a);
+  // Annees proposees pour les graphes 5M/zone : l annee en cours est toujours presente, meme sans donnee.
+  const anneesStatsOpts = [...new Set([new Date().getFullYear(), ...anneesDispoTable])].sort((a,b)=>b-a);
+  const actionsStats = filterAnneeStats === "Toutes" ? actions : actions.filter(a=>{ const d=pdFilter(a.dateDetection); return d && !isNaN(d) && d.getFullYear() === parseInt(filterAnneeStats); });
   const MOIS_LABELS_TABLE = ["Janvier","Fevrier","Mars","Avril","Mai","Juin","Juillet","Aout","Septembre","Octobre","Novembre","Decembre"];
   const filtered = filteredByStatut.filter(a => {
     const d = pdFilter(a.dateDetection);
@@ -6972,10 +6976,18 @@ function PlanActions() {
       )}
 
       {/* Graphes statistiques */}
-      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:8,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:12,color:"#7a90aa"}}>Année :</span>
+          <select value={filterAnneeStats} onChange={e=>setFilterAnneeStats(e.target.value)}
+            style={{ background:"#1a2540", color:"#f1f5f9", border:"1px solid #3d5270", borderRadius:6, padding:"5px 10px", fontSize:12, fontFamily:"inherit", cursor:"pointer" }}>
+            <option value="Toutes">Toutes</option>
+            {anneesStatsOpts.map(y=><option key={y} value={String(y)}>{y}</option>)}
+          </select>
+        </div>
         <button onClick={()=>{
           const headers = ["5M","Nb actions"];
-          const rows = CINQ_M.map(m=>[m, actions.filter(a=>a.titre5m===m).length]);
+          const rows = CINQ_M.map(m=>[m, actionsStats.filter(a=>a.titre5m===m).length]);
           exportCSV("repartition_5M_"+CLIENT_CONFIG.nom.replace(/\s+/g,"_"), headers, rows);
         }} title="Exporter la répartition 5M en Excel"
           style={{ background:"#22c55e22", color:"#22c55e", border:"1px solid #22c55e44", borderRadius:6, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
@@ -6983,15 +6995,15 @@ function PlanActions() {
         </button>
       </div>
       <PieChart
-        title="Répartition par 5M"
+        title={"Répartition par 5M"+(filterAnneeStats!=="Toutes"?" — "+filterAnneeStats:"")}
         chartKey="PlanActions_5M"
-        data={CINQ_M.map((m,i)=>({label:m, value: actions.filter(a=>a.titre5m===m).length, color:["#8b5cf6","#3b82f6","#22c55e","#f59e0b","#ef4444"][i]}))}
+        data={CINQ_M.map((m,i)=>({label:m, value: actionsStats.filter(a=>a.titre5m===m).length, color:["#8b5cf6","#3b82f6","#22c55e","#f59e0b","#ef4444"][i]}))}
       />
       <BarChartHorizontal
-        title="Répartition par zone"
+        title={"Répartition par zone"+(filterAnneeStats!=="Toutes"?" — "+filterAnneeStats:"")}
         chartKey="PlanActions_Zone"
         color="#3b82f6"
-        data={Object.entries(actions.reduce((acc,a)=>{const z=a.zone||"Non renseigne";acc[z]=(acc[z]||0)+1;return acc;},{})).map(([label,value])=>({label,value}))}
+        data={Object.entries(actionsStats.reduce((acc,a)=>{const z=a.zone||"Non renseigne";acc[z]=(acc[z]||0)+1;return acc;},{})).map(([label,value])=>({label,value}))}
       />
       <EvolutionActionsChart actions={actions} />
       <ComparaisonAnneesActionsChart actions={actions} />
@@ -10982,11 +10994,13 @@ function GestionPostes({ postes, setPostes }) {
   const [editId, setEditId]         = useState(null);
   const [editData, setEditData]     = useState({});
   const [prevPostes, setPrevPostes] = useState(null);
-  const [macrosList, setMacrosList] = useState(MACROS);
+  const [macrosList, setMacrosList] = useState(()=>{ try { const s = window.localStorage.getItem("aads_macros_list"); const a = s?JSON.parse(s):null; return (Array.isArray(a)&&a.length)?a:MACROS; } catch(e) { return MACROS; } });
   const [newMacroInput, setNewMacroInput] = useState("");
-  const [typesList, setTypesList] = useState(["RE", "RI", "DEIV", "PIV", "PC", "Autre"]);
+  const [typesList, setTypesList] = useState(()=>{ try { const s = window.localStorage.getItem("aads_types_list"); const a = s?JSON.parse(s):null; return (Array.isArray(a)&&a.length)?a:["RE","RI","DEIV","PIV","PC","Autre"]; } catch(e) { return ["RE","RI","DEIV","PIV","PC","Autre"]; } });
   const [newTypeInput, setNewTypeInput] = useState("");
   const [showManageLists, setShowManageLists] = useState(false);
+  useEffect(()=>{ try { window.localStorage.setItem("aads_macros_list", JSON.stringify(macrosList)); } catch(e) {} }, [macrosList]);
+  useEffect(()=>{ try { window.localStorage.setItem("aads_types_list", JSON.stringify(typesList)); } catch(e) {} }, [typesList]);
 
   function addMacro(value, applyTo) {
     const v = value.trim();
