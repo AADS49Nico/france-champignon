@@ -3745,6 +3745,7 @@ function StatutGraph({ passagesFiltres }) {
 
 function TauxActiviteChart({ passages, postes }) {
   const [typeFilter, setTypeFilter] = usePersistedValue("TauxActivite_typeFilter", "tous"); // tous | RE | RI
+  const [macroFilter, setMacroFilter] = usePersistedValue("TauxActivite_macroFilter", "Toutes"); // zone macro, cumulable avec le type
   const [filterAnnee, setFilterAnnee] = usePersistedValue("TauxActivite_filterAnnee", anneeDefaut(passages));
   const [selectedAnnees, setSelectedAnnees] = usePersistedValue("TauxActivite_selectedAnnees", []);
   const [filterTrimestre, setFilterTrimestre] = usePersistedValue("TauxActivite_filterTrimestre", "Tous");
@@ -3771,7 +3772,8 @@ function TauxActiviteChart({ passages, postes }) {
   const pd = d => { if(!d) return new Date(0); const p=(d||"").split("/"); return p.length===3?new Date(p[2]+"-"+p[1]+"-"+p[0]):new Date(d); };
   const MOIS_LABELS = ["Jan.","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Dec"];
 
-  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter));
+  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter) && (macroFilter==="Toutes" || (p.macro||"")===macroFilter));
+  const macrosDispo = ["Toutes", ...Array.from(new Set(postes.filter(p=>(p.nuisible||"Rongeurs")==="Rongeurs").map(p=>p.macro).filter(Boolean)))];
 
   const annees = [...new Set(passages.filter(p=>p.type!=="Insectes volants").map(p=>{ const d=pd(p.date); return d&&!isNaN(d)?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>a-b);
 
@@ -3921,6 +3923,12 @@ function TauxActiviteChart({ passages, postes }) {
                 </div>
               </div>
               <div>
+                <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Zone macro</label>
+                <select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
+                  {macrosDispo.map(m=><option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
                 <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Annee(s)</label>
                 <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                   {annees.map(a=>{
@@ -3960,7 +3968,7 @@ function TauxActiviteChart({ passages, postes }) {
                 style={{background:showSeuils?"#243352":"transparent",color:showSeuils?"#f1f5f9":"#7a90aa",border:"1px solid "+(showSeuils?"#5a7090":"#3d5270"),borderRadius:7,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
                 {showSeuils?"Masquer":"Afficher"} seuils
               </button>
-              <button onClick={()=>{setTypeFilter("tous");setFilterAnnee("Toutes");setSelectedAnnees([]);setFilterTrimestre("Tous");setFilterMois("Tous");setShowSeuils(true);setEchelle("auto");}}
+              <button onClick={()=>{setTypeFilter("tous");setMacroFilter("Toutes");setFilterAnnee("Toutes");setSelectedAnnees([]);setFilterTrimestre("Tous");setFilterMois("Tous");setShowSeuils(true);setEchelle("auto");}}
                 style={{background:"transparent",color:"#7a90aa",border:"1px solid #3d5270",borderRadius:7,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
                 Reset
               </button>
@@ -4037,6 +4045,12 @@ function TauxActiviteChart({ passages, postes }) {
           </div>
         </div>
         <div>
+          <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Zone macro</label>
+          <select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
+            {macrosDispo.map(m=><option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+        <div>
           <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Annee(s)</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
             {annees.map(a=>{
@@ -4076,7 +4090,7 @@ function TauxActiviteChart({ passages, postes }) {
           style={{background:showSeuils?"#243352":"transparent",color:showSeuils?"#f1f5f9":"#7a90aa",border:"1px solid "+(showSeuils?"#5a7090":"#3d5270"),borderRadius:7,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
           {showSeuils?"Masquer":"Afficher"} seuils
         </button>
-        <button onClick={()=>{setTypeFilter("tous");setFilterAnnee("Toutes");setSelectedAnnees([]);setFilterTrimestre("Tous");setFilterMois("Tous");setShowSeuils(true);setEchelle("auto");}}
+        <button onClick={()=>{setTypeFilter("tous");setMacroFilter("Toutes");setFilterAnnee("Toutes");setSelectedAnnees([]);setFilterTrimestre("Tous");setFilterMois("Tous");setShowSeuils(true);setEchelle("auto");}}
           style={{background:"transparent",color:"#7a90aa",border:"1px solid #3d5270",borderRadius:7,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
           Reset
         </button>
@@ -4132,6 +4146,7 @@ function TauxActiviteChart({ passages, postes }) {
 
 function CapturesChart({ passages, postes }) {
   const [typeFilter, setTypeFilter] = usePersistedValue("Captures_typeFilter", "tous"); // tous | RE | RI
+  const [macroFilter, setMacroFilter] = usePersistedValue("Captures_macroFilter", "Toutes"); // zone macro, cumulable avec le type
   const [filterAnnee, setFilterAnnee] = usePersistedValue("Captures_filterAnnee", anneeDefaut(passages));
   const [selectedAnnees, setSelectedAnnees] = usePersistedValue("Captures_selectedAnnees", []);
   const [filterTrimestre, setFilterTrimestre] = usePersistedValue("Captures_filterTrimestre", "Tous");
@@ -4144,7 +4159,8 @@ function CapturesChart({ passages, postes }) {
   const pd = d => { if(!d) return new Date(0); const p=(d||"").split("/"); return p.length===3?new Date(p[2]+"-"+p[1]+"-"+p[0]):new Date(d); };
   const MOIS_LABELS = ["Jan.","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Dec"];
 
-  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter));
+  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter) && (macroFilter==="Toutes" || (p.macro||"")===macroFilter));
+  const macrosDispo = ["Toutes", ...Array.from(new Set(postes.filter(p=>(p.nuisible||"Rongeurs")==="Rongeurs").map(p=>p.macro).filter(Boolean)))];
 
   const annees = [...new Set(passages.filter(p=>p.type!=="Insectes volants").map(p=>{ const d=pd(p.date); return d&&!isNaN(d)?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>a-b);
 
@@ -4258,6 +4274,12 @@ function CapturesChart({ passages, postes }) {
         </div>
       </div>
       <div>
+        <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Zone macro</label>
+        <select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
+          {macrosDispo.map(m=><option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+      <div>
         <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Annee(s)</label>
         <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
           {annees.map(a=>{
@@ -4292,7 +4314,7 @@ function CapturesChart({ passages, postes }) {
           {echelle==="manuel" && <input type="number" min="1" value={maxManuel} onChange={e=>setMaxManuel(e.target.value)} style={{...inpStyle,width:60}}/>}
         </div>
       </div>
-      <button onClick={()=>{setTypeFilter("tous");setFilterAnnee("Toutes");setSelectedAnnees([]);setFilterTrimestre("Tous");setFilterMois("Tous");setEchelle("auto");}}
+      <button onClick={()=>{setTypeFilter("tous");setMacroFilter("Toutes");setFilterAnnee("Toutes");setSelectedAnnees([]);setFilterTrimestre("Tous");setFilterMois("Tous");setEchelle("auto");}}
         style={{background:"transparent",color:"#7a90aa",border:"1px solid #3d5270",borderRadius:7,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
         Reset
       </button>
@@ -4368,6 +4390,7 @@ function CapturesChart({ passages, postes }) {
 
 function PostesTouchesChart({ passages, postes }) {
   const [typeFilter, setTypeFilter] = usePersistedValue("PostesTouches_typeFilter", "tous"); // tous | RE | RI
+  const [macroFilter, setMacroFilter] = usePersistedValue("PostesTouches_macroFilter", "Toutes"); // zone macro, cumulable avec le type
   const [filterAnnee, setFilterAnnee] = usePersistedValue("PostesTouches_filterAnnee", anneeDefaut(passages));
   const [selectedAnnees, setSelectedAnnees] = usePersistedValue("PostesTouches_selectedAnnees", []);
   const [filterTrimestre, setFilterTrimestre] = usePersistedValue("PostesTouches_filterTrimestre", "Tous");
@@ -4381,7 +4404,8 @@ function PostesTouchesChart({ passages, postes }) {
   const pd = d => { if(!d) return new Date(0); const p=(d||"").split("/"); return p.length===3?new Date(p[2]+"-"+p[1]+"-"+p[0]):new Date(d); };
   const MOIS_LABELS = ["Jan.","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Dec"];
 
-  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter));
+  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter) && (macroFilter==="Toutes" || (p.macro||"")===macroFilter));
+  const macrosDispo = ["Toutes", ...Array.from(new Set(postes.filter(p=>(p.nuisible||"Rongeurs")==="Rongeurs").map(p=>p.macro).filter(Boolean)))];
   const totalPostes = postesRongeurs.length;
 
   const annees = [...new Set(passages.filter(p=>p.type!=="Insectes volants").map(p=>{ const d=pd(p.date); return d&&!isNaN(d)?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>a-b);
@@ -4502,6 +4526,12 @@ function PostesTouchesChart({ passages, postes }) {
         </div>
       </div>
       <div>
+        <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Zone macro</label>
+        <select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
+          {macrosDispo.map(m=><option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+      <div>
         <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Annee(s)</label>
         <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
           {annees.map(a=>{
@@ -4541,7 +4571,7 @@ function PostesTouchesChart({ passages, postes }) {
         style={{background:showTotal?"#243352":"transparent",color:showTotal?"#f1f5f9":"#7a90aa",border:"1px solid "+(showTotal?"#5a7090":"#3d5270"),borderRadius:7,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
         {showTotal?"Masquer":"Afficher"} ligne totale
       </button>
-      <button onClick={()=>{setTypeFilter("tous");setFilterAnnee("Toutes");setSelectedAnnees([]);setFilterTrimestre("Tous");setFilterMois("Tous");setShowTotal(true);setEchelle("auto");}}
+      <button onClick={()=>{setTypeFilter("tous");setMacroFilter("Toutes");setFilterAnnee("Toutes");setSelectedAnnees([]);setFilterTrimestre("Tous");setFilterMois("Tous");setShowTotal(true);setEchelle("auto");}}
         style={{background:"transparent",color:"#7a90aa",border:"1px solid #3d5270",borderRadius:7,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
         Reset
       </button>
