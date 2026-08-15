@@ -7104,6 +7104,7 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
   const [reinvPhotos, setReinvPhotos] = useState([]);
   const [activeTab, setActiveTab] = useState("saisie_tab");
   const [filterTypeMol, setFilterTypeMol] = useState("tous");
+  const [filterAnneeMol, setFilterAnneeMol] = useState("Toutes");
   const [deivForm, setDeivForm] = useState({ date:"", technicien:"" });
   const [deivSaisies, setDeivSaisies] = useState({});
   // Mode saisie telephone : poste selectionne + recherche + postes deja valides
@@ -8107,7 +8108,7 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
           ...postes.filter(p=>(p.nuisible||"Rongeurs")==="Rongeurs").map(p=>p.molecule_actuelle).filter(Boolean),
           ...passagesData.flatMap(pa=>{ const s=typeof pa.saisies==="string"?JSON.parse(pa.saisies||"{}"):pa.saisies||{}; return Object.values(s).map(x=>x?.molecule).filter(Boolean); })
         ])];
-        const getMolColor = mol => { if(!mol)return "#3d5270"; if(mol==="Placebo")return "#3b82f6"; const others=allMols.filter(m=>m!=="Placebo"); const idx=others.indexOf(mol); return idx>=0?MOL_COLORS[idx%MOL_COLORS.length]:"#7a90aa"; };
+        const getMolColor = mol => { if(!mol)return "#3d5270"; if(mol==="Placebo")return "#3b82f6"; if(/^dif/i.test(mol))return "#f59e0b"; if(/^brod/i.test(mol))return "#ef4444"; const others=allMols.filter(m=>m!=="Placebo"&&!/^dif/i.test(m)&&!/^brod/i.test(m)); const idx=others.indexOf(mol); return idx>=0?MOL_COLORS[idx%MOL_COLORS.length]:"#7a90aa"; };
 
         // Tri naturel des postes : RE1,RE2,...RE10,RE11 puis RI1,...
         function sortNaturel(arr) {
@@ -8120,7 +8121,9 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
 
         const filterType = filterTypeMol;
         const setFilterType = setFilterTypeMol;
-        const passages6 = [...passagesData.filter(pa=>pa.type!=="Insectes volants")].sort((a,b)=>{
+        const anneeDe = d => { const p=(d||"").split("/"); return p.length===3?p[2]:null; };
+        const anneesMol = [...new Set(passagesData.filter(pa=>pa.type!=="Insectes volants").map(pa=>anneeDe(pa.date)).filter(Boolean))].sort((a,b)=>b-a);
+        const passages6 = [...passagesData.filter(pa=>pa.type!=="Insectes volants" && (filterAnneeMol==="Toutes" || anneeDe(pa.date)===filterAnneeMol))].sort((a,b)=>{
           const pd=d=>{const p=(d||"").split("/");return p.length===3?new Date(p[2]+"-"+p[1]+"-"+p[0]):new Date(0);};
           return pd(a.date)-pd(b.date); // plus ancienne à gauche
         });
@@ -8181,6 +8184,11 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
                   {t==="tous"?"Tous":t==="RE"?"Ext. (RE)":"Int. (RI)"}
                 </button>
               ))}
+              <select value={filterAnneeMol} onChange={e=>setFilterAnneeMol(e.target.value)}
+                style={{background:"#1a2540",color:"#f1f5f9",border:"1px solid #3d5270",borderRadius:7,padding:"5px 10px",fontSize:11,fontFamily:"inherit",cursor:"pointer"}}>
+                <option value="Toutes">Toutes années</option>
+                {anneesMol.map(a=><option key={a} value={a}>{a}</option>)}
+              </select>
               <button onClick={exportPdf} style={{background:"#1d4ed822",color:"#3b82f6",border:"1px solid #3b82f644",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📄 PDF</button>
               <button onClick={exportExcel} style={{background:"#16a34a22",color:"#22c55e",border:"1px solid #22c55e44",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📊 Excel</button>
             </div>
