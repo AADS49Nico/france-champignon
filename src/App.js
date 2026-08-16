@@ -6678,7 +6678,9 @@ function PlanActions() {
       setActions(prev => prev.map(a => {
         if (a.id !== editId) return a;
         const updated = { ...a, ...draft, photos: draftPhotos };
-        sbUpsert("plan_actions", { id:updated.id, contrat:CLIENT_CONFIG.contrat, titre5m:draft.titre5m, type:draft.type, priorite:draft.priorite, zone:draft.zone, description:draft.description, recommandation:draft.recommandation, technicien:draft.technicien, piege_ref:draft.piegeRef||"", statut:updated.statut||"Planifiée", date_detection:updated.dateDetection||"", photos:JSON.stringify(draftPhotos) });
+        // PATCH cible (par id) plutot qu un upsert merge-duplicates : plus robuste,
+        // ne depend pas d une contrainte unique sur la table.
+        sbUpdate("plan_actions", updated.id, { titre5m:draft.titre5m, type:draft.type, priorite:draft.priorite, zone:draft.zone, description:draft.description, recommandation:draft.recommandation, technicien:draft.technicien, piege_ref:draft.piegeRef||"", statut:updated.statut||"Planifiée", date_detection:updated.dateDetection||"", photos:JSON.stringify(draftPhotos) });
         return updated;
       }));
     } else {
@@ -6709,14 +6711,7 @@ function PlanActions() {
     setActions(prev => prev.map(a => {
       if (a.id !== id) return a;
       const updated = { ...a, statut };
-      sbUpsert("plan_actions", {
-        id: updated.id, contrat: CLIENT_CONFIG.contrat,
-        titre5m: updated.titre5m, type: updated.type, priorite: updated.priorite, zone: updated.zone,
-        description: updated.description, recommandation: updated.recommandation, technicien: updated.technicien,
-        piege_ref: updated.piegeRef||"",
-        statut: updated.statut, date_detection: updated.dateDetection||"",
-        photos: JSON.stringify(updated.photos || [])
-      });
+      sbUpdate("plan_actions", updated.id, { statut: updated.statut });
       return updated;
     }));
   }
