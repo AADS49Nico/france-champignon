@@ -14883,6 +14883,24 @@ function AppPortail({ isAdmin, onLogout }) {
   const [showLogoEditor, setShowLogoEditor] = useState(false);
   const [showParametres, setShowParametres] = useState(false);
 
+  // Config des onglets (visibilite + ordre) persistee EN BASE (config_logos.nav_config)
+  // pour etre partagee entre appareils/techniciens. localStorage reste un cache.
+  function saveNavConfig(visible, order) {
+    var payload = { visible: visible, order: order };
+    sbFetch("config_logos?id=eq.main", "PATCH", { nav_config: payload }, { Prefer:"return=representation" })
+      .then(function(r){ if (!r || (Array.isArray(r) && r.length === 0)) { sbFetch("config_logos", "POST", { id:"main", nav_config: payload }, { Prefer:"resolution=merge-duplicates" }).catch(function(){}); } })
+      .catch(function(){});
+  }
+  useEffect(function(){
+    sbFetch("config_logos?id=eq.main","GET").then(function(data){
+      if (data && data.length>0 && data[0].nav_config) {
+        var nc = data[0].nav_config;
+        if (nc && nc.visible && typeof nc.visible==="object") { setNavVisible(function(prev){ return {...prev, ...nc.visible}; }); try { localStorage.setItem("aads_nav_visible", JSON.stringify(nc.visible)); } catch(e){} }
+        if (nc && Array.isArray(nc.order) && nc.order.length) { var miss = allNavItems.filter(function(n){ return nc.order.indexOf(n.id)<0; }).map(function(n){ return n.id; }); var ord=[...nc.order, ...miss]; setNavOrder(ord); try { localStorage.setItem("aads_nav_order", JSON.stringify(ord)); } catch(e){} }
+      }
+    }).catch(function(){});
+  }, []);
+
   const [, forceConfigUpdate] = useState(0);
   // Miroir React de SITE_ACTIF : sert de key a View pour la remonter a chaque
   // bascule, ce qui rejoue le chargement des donnees de la page.
@@ -15155,7 +15173,8 @@ function AppPortail({ isAdmin, onLogout }) {
                           const next = prev.filter(x => x !== dragId);
                           const idx2 = next.indexOf(overId);
                           next.splice(idx2, 0, dragId);
-                          try { localStorage.setItem("aads_nav_order", JSON.stringify(next)); } catch(_e) { return; }
+                          try { localStorage.setItem("aads_nav_order", JSON.stringify(next)); } catch(_e) {}
+                          saveNavConfig(navVisible, next);
                           return next;
                         });
                         navDragOver.current = null;
@@ -15181,7 +15200,8 @@ function AppPortail({ isAdmin, onLogout }) {
                 <button onClick={() => {
                   const reset = allNavItems.map(n => n.id);
                   setNavOrder(reset);
-                  try { localStorage.setItem("aads_nav_order", JSON.stringify(reset)); } catch(_e) { return; }
+                  try { localStorage.setItem("aads_nav_order", JSON.stringify(reset)); } catch(_e) {}
+                  saveNavConfig(navVisible, reset);
                 }} style={{ width:"100%", background:"transparent", color:"#5a7090", border:"1px solid #3d5270", borderRadius:6, padding:"4px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit", marginBottom:8 }}>
                   Réinitialiser l'ordre
                 </button>
@@ -15196,7 +15216,8 @@ function AppPortail({ isAdmin, onLogout }) {
                           onChange={e => {
                             const next = { ...navVisible, [item.id]: e.target.checked };
                             setNavVisible(next);
-                            try { localStorage.setItem("aads_nav_visible", JSON.stringify(next)); } catch(_e) { return; }
+                            try { localStorage.setItem("aads_nav_visible", JSON.stringify(next)); } catch(_e) {}
+                            saveNavConfig(next, navOrder);
                           }}
                           style={{ accentColor: "#3b82f6" }} />
                         <span style={{ fontSize: 11, color: item.required ? "#5a7090" : navVisible[item.id] !== false ? "#f1f5f9" : "#7a90aa" }}>{item.label}</span>
