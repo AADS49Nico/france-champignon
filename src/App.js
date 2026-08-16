@@ -8698,9 +8698,10 @@ function Habilitations() {
   const [form, setForm]               = useState({ nom:"", role:"Technicien", actif:true, certiphyto:false, certibiocide:false, hab_elec:false, caces:false, pack_sec:false, telephone:"", email:"", equipe:"3d" });
   const [uploading, setUploading]     = useState(null);
   const [newDocType, setNewDocType]   = useState("Certiphyto");
-  const [hiddenIds, setHiddenIds]     = useState([]);
+  const [hiddenIds, setHiddenIds]     = useState(()=>{ try { const s = localStorage.getItem("aads_hab_hidden"); const a = s?JSON.parse(s):[]; return Array.isArray(a)?a:[]; } catch(e) { return []; } });
   const [draggingId, setDraggingId]   = useState(null);
   const [showHidden, setShowHidden]   = useState(false);
+  useEffect(()=>{ try { localStorage.setItem("aads_hab_hidden", JSON.stringify(hiddenIds)); } catch(e) {} }, [hiddenIds]);
 
   const DOC_TYPES = activeEquipe === "assainissement" ? DOC_TYPES_ASSAIN : DOC_TYPES_3D;
 
@@ -9011,9 +9012,10 @@ function Agrements() {
   const [form, setForm]           = useState({ type:"Certification", nom:"", statut:"Valide" });
   const [uploading, setUploading] = useState(null);
   const [sel, setSel]             = useState(null);
-  const [hiddenIds, setHiddenIds] = useState([]);
+  const [hiddenIds, setHiddenIds] = useState(()=>{ try { const s = localStorage.getItem("aads_agrements_hidden"); const a = s?JSON.parse(s):[]; return Array.isArray(a)?a:[]; } catch(e) { return []; } });
   const [draggingId, setDraggingId] = useState(null);
   const [showHidden, setShowHidden] = useState(false);
+  useEffect(()=>{ try { localStorage.setItem("aads_agrements_hidden", JSON.stringify(hiddenIds)); } catch(e) {} }, [hiddenIds]);
 
   useEffect(() => {
     sbGet("agrements").then(data => {
