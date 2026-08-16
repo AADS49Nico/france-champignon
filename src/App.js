@@ -6585,7 +6585,7 @@ function PlanActions() {
   const [filter, setFilter] = useState("Toutes");
   const [filterAnneeTable, setFilterAnneeTable] = useState("Toutes");
   const [filterMoisTable, setFilterMoisTable] = useState("Tous");
-  const [filterAnneeStats, setFilterAnneeStats] = useState(String(new Date().getFullYear())); // annee des graphes 5M/zone (par defaut : annee en cours)
+  const [filterAnneesStats, setFilterAnneesStats] = useState([new Date().getFullYear()]); // annees des graphes 5M/zone (multi-selection ; defaut : annee en cours)
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
   const [lightbox, setLightbox] = useState(null);
@@ -6726,7 +6726,8 @@ function PlanActions() {
   const anneesDispoTable = [...new Set(actions.map(a=>{ const d=pdFilter(a.dateDetection); return d&&!isNaN(d)?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>b-a);
   // Annees proposees pour les graphes 5M/zone : l annee en cours est toujours presente, meme sans donnee.
   const anneesStatsOpts = [...new Set([new Date().getFullYear(), ...anneesDispoTable])].sort((a,b)=>b-a);
-  const actionsStats = filterAnneeStats === "Toutes" ? actions : actions.filter(a=>{ const d=pdFilter(a.dateDetection); return d && !isNaN(d) && d.getFullYear() === parseInt(filterAnneeStats); });
+  const actionsStats = filterAnneesStats.length === 0 ? actions : actions.filter(a=>{ const d=pdFilter(a.dateDetection); return d && !isNaN(d) && filterAnneesStats.includes(d.getFullYear()); });
+  const labelAnneesStats = filterAnneesStats.length === 0 ? "" : " — " + [...filterAnneesStats].sort((a,b)=>a-b).join(", ");
   const MOIS_LABELS_TABLE = ["Janvier","Fevrier","Mars","Avril","Mai","Juin","Juillet","Aout","Septembre","Octobre","Novembre","Decembre"];
   const filtered = filteredByStatut.filter(a => {
     const d = pdFilter(a.dateDetection);
@@ -7063,13 +7064,21 @@ function PlanActions() {
 
       {/* Graphes statistiques */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:8,flexWrap:"wrap"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:12,color:"#7a90aa"}}>Année :</span>
-          <select value={filterAnneeStats} onChange={e=>setFilterAnneeStats(e.target.value)}
-            style={{ background:"#1a2540", color:"#f1f5f9", border:"1px solid #3d5270", borderRadius:6, padding:"5px 10px", fontSize:12, fontFamily:"inherit", cursor:"pointer" }}>
-            <option value="Toutes">Toutes</option>
-            {anneesStatsOpts.map(y=><option key={y} value={String(y)}>{y}</option>)}
-          </select>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:"#7a90aa"}}>Année(s) :</span>
+          <button onClick={()=>setFilterAnneesStats([])}
+            style={{ background:filterAnneesStats.length===0?"#1d4ed8":"#243352", color:filterAnneesStats.length===0?"#fff":"#7a90aa", border:"1px solid "+(filterAnneesStats.length===0?"#3b82f6":"#3d5270"), borderRadius:6, padding:"5px 12px", fontSize:11, fontWeight:filterAnneesStats.length===0?700:400, cursor:"pointer", fontFamily:"inherit" }}>
+            Toutes
+          </button>
+          {anneesStatsOpts.map(y=>{
+            const on = filterAnneesStats.includes(y);
+            return (
+              <button key={y} onClick={()=>setFilterAnneesStats(prev=>prev.includes(y)?prev.filter(x=>x!==y):[...prev,y])}
+                style={{ background:on?"#1d4ed8":"#243352", color:on?"#fff":"#7a90aa", border:"1px solid "+(on?"#3b82f6":"#3d5270"), borderRadius:6, padding:"5px 12px", fontSize:11, fontWeight:on?700:400, cursor:"pointer", fontFamily:"inherit" }}>
+                {y}
+              </button>
+            );
+          })}
         </div>
         <button onClick={()=>{
           const headers = ["5M","Nb actions"];
@@ -7081,12 +7090,12 @@ function PlanActions() {
         </button>
       </div>
       <PieChart
-        title={"Répartition par 5M"+(filterAnneeStats!=="Toutes"?" — "+filterAnneeStats:"")}
+        title={"Répartition par 5M"+labelAnneesStats}
         chartKey="PlanActions_5M"
         data={CINQ_M.map((m,i)=>({label:m, value: actionsStats.filter(a=>a.titre5m===m).length, color:["#8b5cf6","#3b82f6","#22c55e","#f59e0b","#ef4444"][i]}))}
       />
       <BarChartHorizontal
-        title={"Répartition par zone"+(filterAnneeStats!=="Toutes"?" — "+filterAnneeStats:"")}
+        title={"Répartition par zone"+labelAnneesStats}
         chartKey="PlanActions_Zone"
         color="#3b82f6"
         data={Object.entries(actionsStats.reduce((acc,a)=>{const z=a.zone||"Non renseigne";acc[z]=(acc[z]||0)+1;return acc;},{})).map(([label,value])=>({label,value}))}
