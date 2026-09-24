@@ -3972,6 +3972,7 @@ function StatutGraph({ passagesFiltres }) {
 function TauxActiviteChart({ passages, postes }) {
   const [typeFilter, setTypeFilter] = usePersistedValue("TauxActivite_typeFilter", "tous"); // tous | RE | RI
   const [macroFilter, setMacroFilter] = usePersistedValue("TauxActivite_macroFilter", "Toutes"); // zone macro, cumulable avec le type
+  const [produitNuFilter, setProduitNuFilter] = usePersistedValue("TauxActivite_produitNuFilter", "tous"); // tous | oui | non
   const [filterAnnee, setFilterAnnee] = usePersistedValue("TauxActivite_filterAnnee", anneeDefaut(passages));
   const [selectedAnnees, setSelectedAnnees] = usePersistedValue("TauxActivite_selectedAnnees", []);
   const [filterTrimestre, setFilterTrimestre] = usePersistedValue("TauxActivite_filterTrimestre", "Tous");
@@ -3998,7 +3999,7 @@ function TauxActiviteChart({ passages, postes }) {
   const pd = d => { if(!d) return new Date(0); const p=(d||"").split("/"); return p.length===3?new Date(p[2]+"-"+p[1]+"-"+p[0]):new Date(d); };
   const MOIS_LABELS = ["Jan.","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Dec"];
 
-  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter) && (macroFilter==="Toutes" || (p.macro||"")===macroFilter));
+  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter) && (macroFilter==="Toutes" || (p.macro||"")===macroFilter) && (produitNuFilter==="tous" || (produitNuFilter==="oui" ? !!p.produit_nu : !p.produit_nu)));
   const macrosDispo = ["Toutes", ...Array.from(new Set(postes.filter(p=>(p.nuisible||"Rongeurs")==="Rongeurs").map(p=>p.macro).filter(Boolean)))];
 
   const annees = [...new Set(passages.filter(p=>p.type!=="Insectes volants").map(p=>{ const d=pd(p.date); return d&&!isNaN(d)?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>a-b);
@@ -4152,7 +4153,7 @@ function TauxActiviteChart({ passages, postes }) {
               </div>
               <div>
                 <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Zone macro</label>
-                <select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
+                <select value={produitNuFilter} onChange={e=>setProduitNuFilter(e.target.value)} style={inpStyle}><option value="tous">Produit nu : tous</option><option value="oui">En zone produit nu</option><option value="non">Hors produit nu</option></select><select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
                   {macrosDispo.map(m=><option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
@@ -4274,7 +4275,7 @@ function TauxActiviteChart({ passages, postes }) {
         </div>
         <div>
           <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Zone macro</label>
-          <select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
+          <select value={produitNuFilter} onChange={e=>setProduitNuFilter(e.target.value)} style={inpStyle}><option value="tous">Produit nu : tous</option><option value="oui">En zone produit nu</option><option value="non">Hors produit nu</option></select><select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
             {macrosDispo.map(m=><option key={m} value={m}>{m}</option>)}
           </select>
         </div>
@@ -4375,6 +4376,7 @@ function TauxActiviteChart({ passages, postes }) {
 function CapturesChart({ passages, postes }) {
   const [typeFilter, setTypeFilter] = usePersistedValue("Captures_typeFilter", "tous"); // tous | RE | RI
   const [macroFilter, setMacroFilter] = usePersistedValue("Captures_macroFilter", "Toutes"); // zone macro, cumulable avec le type
+  const [produitNuFilter, setProduitNuFilter] = usePersistedValue("Captures_produitNuFilter", "tous"); // tous | oui | non
   const [filterAnnee, setFilterAnnee] = usePersistedValue("Captures_filterAnnee", anneeDefaut(passages));
   const [selectedAnnees, setSelectedAnnees] = usePersistedValue("Captures_selectedAnnees", []);
   const [filterTrimestre, setFilterTrimestre] = usePersistedValue("Captures_filterTrimestre", "Tous");
@@ -4387,7 +4389,7 @@ function CapturesChart({ passages, postes }) {
   const pd = d => { if(!d) return new Date(0); const p=(d||"").split("/"); return p.length===3?new Date(p[2]+"-"+p[1]+"-"+p[0]):new Date(d); };
   const MOIS_LABELS = ["Jan.","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Dec"];
 
-  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter) && (macroFilter==="Toutes" || (p.macro||"")===macroFilter));
+  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter) && (macroFilter==="Toutes" || (p.macro||"")===macroFilter) && (produitNuFilter==="tous" || (produitNuFilter==="oui" ? !!p.produit_nu : !p.produit_nu)));
   const macrosDispo = ["Toutes", ...Array.from(new Set(postes.filter(p=>(p.nuisible||"Rongeurs")==="Rongeurs").map(p=>p.macro).filter(Boolean)))];
 
   const annees = [...new Set(passages.filter(p=>p.type!=="Insectes volants").map(p=>{ const d=pd(p.date); return d&&!isNaN(d)?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>a-b);
@@ -4505,7 +4507,7 @@ function CapturesChart({ passages, postes }) {
       </div>
       <div>
         <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Zone macro</label>
-        <select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
+        <select value={produitNuFilter} onChange={e=>setProduitNuFilter(e.target.value)} style={inpStyle}><option value="tous">Produit nu : tous</option><option value="oui">En zone produit nu</option><option value="non">Hors produit nu</option></select><select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
           {macrosDispo.map(m=><option key={m} value={m}>{m}</option>)}
         </select>
       </div>
@@ -4621,6 +4623,7 @@ function CapturesChart({ passages, postes }) {
 function PostesTouchesChart({ passages, postes }) {
   const [typeFilter, setTypeFilter] = usePersistedValue("PostesTouches_typeFilter", "tous"); // tous | RE | RI
   const [macroFilter, setMacroFilter] = usePersistedValue("PostesTouches_macroFilter", "Toutes"); // zone macro, cumulable avec le type
+  const [produitNuFilter, setProduitNuFilter] = usePersistedValue("PostesTouches_produitNuFilter", "tous"); // tous | oui | non
   const [filterAnnee, setFilterAnnee] = usePersistedValue("PostesTouches_filterAnnee", anneeDefaut(passages));
   const [selectedAnnees, setSelectedAnnees] = usePersistedValue("PostesTouches_selectedAnnees", []);
   const [filterTrimestre, setFilterTrimestre] = usePersistedValue("PostesTouches_filterTrimestre", "Tous");
@@ -4634,7 +4637,7 @@ function PostesTouchesChart({ passages, postes }) {
   const pd = d => { if(!d) return new Date(0); const p=(d||"").split("/"); return p.length===3?new Date(p[2]+"-"+p[1]+"-"+p[0]):new Date(d); };
   const MOIS_LABELS = ["Jan.","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Dec"];
 
-  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter) && (macroFilter==="Toutes" || (p.macro||"")===macroFilter));
+  const postesRongeurs = postes.filter(p => (p.nuisible||"Rongeurs") === "Rongeurs" && (typeFilter==="tous" || p.type===typeFilter) && (macroFilter==="Toutes" || (p.macro||"")===macroFilter) && (produitNuFilter==="tous" || (produitNuFilter==="oui" ? !!p.produit_nu : !p.produit_nu)));
   const macrosDispo = ["Toutes", ...Array.from(new Set(postes.filter(p=>(p.nuisible||"Rongeurs")==="Rongeurs").map(p=>p.macro).filter(Boolean)))];
   const totalPostes = postesRongeurs.length;
 
@@ -4759,7 +4762,7 @@ function PostesTouchesChart({ passages, postes }) {
       </div>
       <div>
         <label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:3}}>Zone macro</label>
-        <select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
+        <select value={produitNuFilter} onChange={e=>setProduitNuFilter(e.target.value)} style={inpStyle}><option value="tous">Produit nu : tous</option><option value="oui">En zone produit nu</option><option value="non">Hors produit nu</option></select><select value={macroFilter} onChange={e=>setMacroFilter(e.target.value)} style={inpStyle}>
           {macrosDispo.map(m=><option key={m} value={m}>{m}</option>)}
         </select>
       </div>
@@ -11656,6 +11659,7 @@ function GestionPostes({ postes, setPostes }) {
               <select value={newP.nuisible} onChange={e=>setNewP(p=>({...p,nuisible:e.target.value}))} style={inpS}>{NUISIBLES_P.map(n=><option key={n}>{n}</option>)}</select></div>
             <div><label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:2}}>Appât</label><input value={newP.appat} onChange={e=>setNewP(p=>({...p,appat:e.target.value}))} style={inpS}/></div>
             <div><label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:2}}>Statut</label><select value={newP.statut||"Actif"} onChange={e=>setNewP(p=>({...p,statut:e.target.value}))} style={inpS}>{STATUTS_POSTES.map(s=><option key={s}>{s}</option>)}</select></div>
+            <div><label style={{fontSize:9,color:"#7a90aa",display:"block",marginBottom:2}}>Produit nu</label><div style={{padding:"5px 0"}}><input type="checkbox" checked={!!newP.produit_nu} onChange={e=>setNewP(p=>({...p,produit_nu:e.target.checked}))} style={{width:16,height:16,cursor:"pointer"}}/></div></div>
           </div>
           <div style={{display:"flex",gap:6}}>
             <button onClick={addPoste} style={{background:"#22c55e",color:"#fff",border:"none",borderRadius:7,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Ajouter</button>
@@ -11674,8 +11678,8 @@ function GestionPostes({ postes, setPostes }) {
       </div>
       <div style={{fontSize:10,color:"#5a7090",marginBottom:6,fontStyle:"italic"}}>{reorderActif ? "Glisser une ligne pour reordonner les postes. L ordre est enregistre pour tous." : "Retire la recherche et le filtre nuisible pour pouvoir reordonner par glisser-deposer."}</div>
       <Card style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"#1a2540",padding:"8px 14px",display:"grid",gridTemplateColumns:"70px 1fr 110px 70px 80px 70px 80px 80px",gap:8,fontSize:9,fontWeight:700,color:"#7a90aa",textTransform:"uppercase"}}>
-          <div>N°</div><div>Zone</div><div>Macro</div><div>Type</div><div>Nuisible</div><div>Capture</div><div>Statut</div><div>Actions</div>
+        <div style={{background:"#1a2540",padding:"8px 14px",display:"grid",gridTemplateColumns:"70px 1fr 110px 70px 80px 70px 70px 80px 80px",gap:8,fontSize:9,fontWeight:700,color:"#7a90aa",textTransform:"uppercase"}}>
+          <div>N°</div><div>Zone</div><div>Macro</div><div>Type</div><div>Nuisible</div><div>Capture</div><div>Produit nu</div><div>Statut</div><div>Actions</div>
         </div>
         <div style={{maxHeight:400,overflowY:"auto"}}>
           {filtered.map((p,i)=>(
@@ -11686,7 +11690,7 @@ function GestionPostes({ postes, setPostes }) {
               onDragLeave={()=>{ if(dragOverId===p.id) setDragOverId(null); }}
               onDrop={e=>{ e.preventDefault(); onDropReorder(p.id); }}
               onDragEnd={()=>{ dragId.current=null; setDragOverId(null); }}
-              style={{padding:"7px 14px",display:"grid",gridTemplateColumns:"70px 1fr 110px 70px 80px 70px 80px 80px",gap:8,alignItems:"center",borderTop:dragOverId===p.id?"2px solid #3b82f6":"1px solid #243352",background:dragOverId===p.id?"#1d4ed822":(i%2===0?"transparent":"#ffffff04"),cursor:(reorderActif && editId!==p.id)?"grab":"default"}}>
+              style={{padding:"7px 14px",display:"grid",gridTemplateColumns:"70px 1fr 110px 70px 80px 70px 70px 80px 80px",gap:8,alignItems:"center",borderTop:dragOverId===p.id?"2px solid #3b82f6":"1px solid #243352",background:dragOverId===p.id?"#1d4ed822":(i%2===0?"transparent":"#ffffff04"),cursor:(reorderActif && editId!==p.id)?"grab":"default"}}>
               {editId===p.id ? (
                 <>
                   <input value={editData.id} onChange={e=>setEditData(d=>({...d,id:e.target.value}))} style={{...inpS,width:"100%"}}/>
@@ -11702,6 +11706,7 @@ function GestionPostes({ postes, setPostes }) {
                     <option value="Lumiere">Lumiere</option>
                     <option value="Autre">Autre</option>
                   </select>
+                  <div style={{textAlign:"center"}}><input type="checkbox" checked={!!editData.produit_nu} onChange={e=>setEditData(d=>({...d,produit_nu:e.target.checked}))} style={{width:15,height:15,cursor:"pointer"}}/></div>
                   <select value={editData.statut||"Actif"} onChange={e=>setEditData(d=>({...d,statut:e.target.value}))} style={inpS}>{STATUTS_POSTES.map(s=><option key={s}>{s}</option>)}</select>
                   <div style={{display:"flex",gap:4}}>
                     <button onClick={saveEdit} style={{background:"#22c55e",color:"#fff",border:"none",borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>OK</button>
@@ -11716,6 +11721,7 @@ function GestionPostes({ postes, setPostes }) {
                   <div style={{fontSize:10,color:"#7a90aa"}}>{p.type}</div>
                   <div style={{fontSize:10,color:NUISIBLE_COLORS[p.nuisible||"Rongeurs"]||"#7a90aa",fontWeight:600}}>{p.nuisible||"Rongeurs"}</div>
                   <div style={{fontSize:10,color:p.appat?"#f1f5f9":"#5a7090"}}>{p.appat||"—"}</div>
+                  <div style={{textAlign:"center",fontSize:11,color:p.produit_nu?"#22c55e":"#5a7090",fontWeight:700}}>{p.produit_nu?"✓":"—"}</div>
                   <div style={{fontSize:10,color:p.statut==="Actif"||!p.statut?"#22c55e":p.statut==="Disparu"?"#ef4444":"#f59e0b",fontWeight:600}}>{p.statut||"Actif"}</div>
                   <div style={{display:"flex",gap:4}}>
                     <button onClick={()=>startEdit(p)} style={{background:"#1d4ed822",color:"#3b82f6",border:"1px solid #3b82f644",borderRadius:5,padding:"2px 7px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
