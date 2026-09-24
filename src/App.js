@@ -12320,6 +12320,7 @@ function PlanImplantation({ seuilsGlobaux }) {
   const [showAllPlans, setShowAllPlans] = useState(false);
   const [selDate, setSelDate]         = useState(null);
   const [filterNuisibleArr, setFilterNuisibleArr] = useState([]);
+  const [filterProduitNu, setFilterProduitNu] = useState("tous"); // tous | oui | non (filtre plan)
   const [modeColor, setModeColor]     = useState("type");
   const [zoom, setZoom]               = useState(()=>{
     try { const saved = window.localStorage && window.localStorage.getItem("aads_plan_zoom"); return saved ? parseInt(saved) : 80; } catch(e) { return 80; }
@@ -12944,6 +12945,7 @@ function PlanImplantation({ seuilsGlobaux }) {
       pts.forEach(pt => {
         const p = postes.find(x=>x.id===pt.id);
         if (!p) return;
+        if ((filterProduitNu==="oui"&&!p.produit_nu)||(filterProduitNu==="non"&&p.produit_nu)) return;
         if (filterNuisibleArr.length>0 && !filterNuisibleArr.some(f=>{if(f==="__RE")return posteEstExt(p);if(f==="__RI")return posteEstInt(p);return (p.nuisible||"Rongeurs")===f;})) return;
         const col = getPosteColor(p, selDate);
         const x = (parseFloat(pt.x)/100) * 900;
@@ -13028,6 +13030,7 @@ function PlanImplantation({ seuilsGlobaux }) {
       pts.forEach(pt => {
         const p = postes.find(x=>x.id===pt.id);
         if (!p) return;
+        if ((filterProduitNu==="oui"&&!p.produit_nu)||(filterProduitNu==="non"&&p.produit_nu)) return;
         if (filterNuisibleArr.length>0 && !filterNuisibleArr.some(f=>{if(f==="__RE")return posteEstExt(p);if(f==="__RI")return posteEstInt(p);return (p.nuisible||"Rongeurs")===f;})) return;
         const col = getPosteColor(p, selDate);
         const x = (parseFloat(pt.x)/100) * img.width;
@@ -13211,6 +13214,17 @@ function PlanImplantation({ seuilsGlobaux }) {
           </button>
         ))}
       </div>
+
+      {/* Filtre zone produit nu */}
+      <Card style={{marginBottom:14,padding:"12px 16px"}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#7a90aa",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Zone produit nu</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {[["tous","Tous"],["oui","En zone produit nu"],["non","Hors produit nu"]].map(function(o){ var v=o[0],l=o[1]; return (
+            <button key={v} onClick={()=>setFilterProduitNu(v)}
+              style={{background:filterProduitNu===v?"#22c55e22":"transparent",color:filterProduitNu===v?"#22c55e":"#7a90aa",border:"1px solid "+(filterProduitNu===v?"#22c55e":"#3d5270"),borderRadius:20,padding:"5px 14px",fontSize:12,fontWeight:filterProduitNu===v?700:500,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+          ); })}
+        </div>
+      </Card>
 
       {/* Filtre nuisible */}
       <Card style={{marginBottom:14,padding:"12px 16px"}}>
@@ -13684,6 +13698,7 @@ function PlanImplantation({ seuilsGlobaux }) {
             {planPostes.map(pt=>{
               const p=postes.find(p=>p.id===pt.id);
               if(!p)return null;
+              if((filterProduitNu==="oui"&&!p.produit_nu)||(filterProduitNu==="non"&&p.produit_nu))return null;
               if(filterNuisibleArr.length>0&&!filterNuisibleArr.some(f=>{if(f==="__RE")return posteEstExt(p);if(f==="__RI")return posteEstInt(p);return (p.nuisible||"Rongeurs")===f;}))return null;
               const col=getPosteColor(p,selDate);
               const isHov=hover===pt.id;
