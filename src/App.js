@@ -1139,15 +1139,15 @@ async function construirePlanFiche(p, postesTous, saisies){
     let posteFormes = { ...POSTE_FORMES_DEFAUT };
     try { const sf = localStorage.getItem("aads_poste_formes"); if (sf) posteFormes = { ...posteFormes, ...JSON.parse(sf) }; } catch(_e) {}
     function pastilleFicheHTML(forme, col, label, left, top){
-      const base = "position:absolute;left:"+left+"%;top:"+top+"%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:800;color:#fff;font-family:sans-serif;box-shadow:0 1px 3px rgba(0,0,0,0.5)";
+      const base = "position:absolute;left:"+left+"%;top:"+top+"%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;font-family:sans-serif;box-shadow:0 1px 3px rgba(0,0,0,0.5)";
       if (forme === "triangle"){
-        return "<div style='"+base+";width:17px;height:15px;background:"+col+";-webkit-clip-path:polygon(50% 0,100% 100%,0 100%);clip-path:polygon(50% 0,100% 100%,0 100%);padding-top:5px;box-sizing:border-box'>"+esc(label)+"</div>";
+        return "<div style='"+base+";width:26px;height:23px;background:"+col+";-webkit-clip-path:polygon(50% 0,100% 100%,0 100%);clip-path:polygon(50% 0,100% 100%,0 100%);padding-top:8px;box-sizing:border-box'>"+esc(label)+"</div>";
       }
-      let wh = "width:15px;height:15px;border-radius:50%";
-      if (forme === "carre") wh = "width:14px;height:14px;border-radius:2px";
-      else if (forme === "rect") wh = "width:21px;height:12px;border-radius:2px";
-      else if (forme === "ovale") wh = "width:20px;height:12px;border-radius:50%";
-      return "<div style='"+base+";"+wh+";background:"+col+";border:1.5px solid #fff'>"+esc(label)+"</div>";
+      let wh = "width:24px;height:24px;border-radius:50%";
+      if (forme === "carre") wh = "width:22px;height:22px;border-radius:3px";
+      else if (forme === "rect") wh = "width:33px;height:18px;border-radius:3px";
+      else if (forme === "ovale") wh = "width:31px;height:18px;border-radius:50%";
+      return "<div style='"+base+";"+wh+";background:"+col+";border:2px solid #fff'>"+esc(label)+"</div>";
     }
     const byPlan = {};
     (positions||[]).forEach(pos=>{ const pid=pos.plan_id; if(!byPlan[pid]) byPlan[pid]=[]; byPlan[pid].push({ id: pos.poste_id||pos.id, x: pos.x, y: pos.y }); });
