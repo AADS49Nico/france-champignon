@@ -267,8 +267,31 @@ async function sbFetch(path, method, body, extraHeaders) {
   if (res.status === 204) return true; // succes sans contenu (DELETE, ou POST sans return=representation)
   return res.json().catch(() => true); // succes, corps non-JSON ou vide -> true plutot que null
 }
-async function sbGet(table) {
-  return sbFetch(table + "?contrat=eq." + CLIENT_CONFIG.contrat + filtreSite(table) + "&order=id.asc", "GET");
+const PLAN_ACTIONS_COLS = "id,contrat,site,titre,titre5m,type,priorite,zone,description,recommandation,technicien,piege_ref,statut,date_detection";
+async function sbGet(table, select) {
+  // Attendre que le contrat soit chargé (multi-site : il arrive après la sélection
+  // du site) pour éviter les requêtes à vide au démarrage.
+  if (!CLIENT_CONFIG.contrat) {
+    for (let i = 0; i < 120 && !CLIENT_CONFIG.contrat; i++) { await new Promise(r => setTimeout(r, 50)); }
+  }
+  // `select` optionnel (ex. charger le plan d'actions sans les photos).
+  // Pagination limit/offset : évite la troncature à ~1000 lignes.
+  const base = table + "?contrat=eq." + CLIENT_CONFIG.contrat + filtreSite(table) + (select ? "&select=" + select : "") + "&order=id.asc";
+  const PAGE = 1000;
+  let all = [];
+  let offset = 0;
+  for (;;) {
+    const chunk = await sbFetch(base + "&limit=" + PAGE + "&offset=" + offset, "GET");
+    if (!Array.isArray(chunk)) {
+      if (offset === 0) { return await sbFetch(base, "GET"); }
+      return all;
+    }
+    all = all.concat(chunk);
+    if (chunk.length < PAGE) break;
+    offset += PAGE;
+    if (offset > 200000) break;
+  }
+  return all;
 }
 async function sbUpsert(table, data) {
   if (tableParSite(table) && !SITE_ACTIF) {
@@ -371,11 +394,14 @@ const NUISIBLES_LIST = ["Rongeurs", "Blattes", "Insectes volants", "Teignes", "I
 const FORMES_DISPO = ["rond", "carre", "rect", "ovale", "triangle"];
 const POSTE_FORMES_DEFAUT = {
   RE: "rond", RI: "rond",
-  "Blattes": "carre", "Insectes volants": "triangle", "Teignes": "ovale", "IPS": "carre",
+  "Blattes": "carre", "Insectes volants": "rect", "Teignes": "ovale", "IPS": "carre",
 };
 // Categorie de forme d un poste : RE / RI pour les rongeurs, sinon le nom du nuisible.
+// Un poste de type DEIV est toujours rangé dans la catégorie "Insectes volants".
 function categorieForme(poste) {
+  if (poste && poste.type === "DEIV") return "Insectes volants";
   var nuisible = (poste && poste.nuisible) || "Rongeurs";
+  if (nuisible === "Insectes volants") return "Insectes volants";
   if (nuisible === "Rongeurs") return poste && poste.type === "RE" ? "RE" : "RI";
   return nuisible;
 }
@@ -874,7 +900,7 @@ export function compteSeuils(passage, postes, seuils) {
 // ============================================================
 // EXPORT PDF
 // ============================================================
-const PDF_CSS = `*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;font-size:11px;color:#243352;background:#fff;padding:15mm;}@page{size:A4;margin:15mm 12mm;}.page-break{page-break-before:always;}h1{font-size:18px;color:#0f2864;font-weight:800;border-bottom:3px solid #0f2864;padding-bottom:8px;margin-bottom:16px;}h2{font-size:13px;font-weight:800;color:#0f2864;border-left:4px solid #0f2864;padding-left:8px;margin:16px 0 10px;text-transform:uppercase;}table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:10px;}th{background:#0f2864;color:#fff;padding:6px 8px;text-align:left;font-size:9px;text-transform:uppercase;font-weight:700;}td{padding:5px 8px;border-bottom:1px solid #e2e8f0;}tr:nth-child(even) td{background:#f8fafc;}.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;}.green{background:#dcfce7;color:#16a34a;}.orange{background:#fef3c7;color:#d97706;}.red{background:#fee2e2;color:#dc2626;}.tot{color:#dc2626;font-weight:700;}.par{color:#d97706;font-weight:700;}.ok{color:#16a34a;}.footer{border-top:1px solid #e2e8f0;padding-top:8px;margin-top:20px;font-size:9px;color:#94a3b8;display:flex;justify-content:space-between;}.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;}.kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px;text-align:center;}.kpi-v{font-size:18px;font-weight:900;color:#0f2864;}.kpi-l{font-size:9px;color:#7a90aa;margin-top:2px;}`;
+const PDF_CSS = `*{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}body{font-family:Arial,sans-serif;font-size:11px;color:#243352;background:#fff;padding:15mm;}@page{size:A4;margin:15mm 12mm;}.page-break{page-break-before:always;}h1{font-size:18px;color:#0f2864;font-weight:800;border-bottom:3px solid #0f2864;padding-bottom:8px;margin-bottom:16px;}h2{font-size:13px;font-weight:800;color:#0f2864;border-left:4px solid #0f2864;padding-left:8px;margin:16px 0 10px;text-transform:uppercase;}table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:10px;}th{background:#0f2864;color:#fff;padding:6px 8px;text-align:left;font-size:9px;text-transform:uppercase;font-weight:700;}td{padding:5px 8px;border-bottom:1px solid #e2e8f0;}tr:nth-child(even) td{background:#f8fafc;}.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;}.green{background:#dcfce7;color:#16a34a;}.orange{background:#fef3c7;color:#d97706;}.red{background:#fee2e2;color:#dc2626;}.tot{color:#dc2626;font-weight:700;}.par{color:#d97706;font-weight:700;}.ok{color:#16a34a;}.footer{border-top:1px solid #e2e8f0;padding-top:8px;margin-top:20px;font-size:9px;color:#94a3b8;display:flex;justify-content:space-between;}.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;}.kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px;text-align:center;}.kpi-v{font-size:18px;font-weight:900;color:#0f2864;}.kpi-l{font-size:9px;color:#7a90aa;margin-top:2px;}`;
 
 function exportCSV(filename, headers, rows) {
   const escapeCsv = (val) => {
@@ -985,14 +1011,194 @@ function _ficheConsomme(s){ const e=(s&&s.etat!=null)?String(s.etat).trim():""; 
 function _ficheExterieur(po){ if(!po)return false; if(po.type==="RE")return true; if(po.type==="RI")return false; return /ext/i.test(String(po.macro||po.zone||"")); }
 function _ficheValide(s){ return !!s && (s.vu===true || s.vu==="true" || _ficheConsomme(s) || _ficheCaptures(s)>0); }
 
+// === [Porté de La Toque] Helpers couleurs/état + plan dans la fiche ===
+// Total des insectes capturés sur un poste DEIV / insectes volants (champs iv_*)
+function totalCapturesIV(s){
+  if (!s) return 0;
+  let t = 0; Object.keys(s).forEach(k=>{ if(k.indexOf("iv_")===0) t += (parseInt(s[k]||0)||0); });
+  return t;
+}
+// Un passage compte comme DEIV / insectes volants s'il est typé "Insectes volants"
+// OU s'il contient des captures d'insectes volants (clés iv_*). Cela couvre les
+// saisies faites via la saisie mobile où le type du passage peut différer.
+function estPassageDeiv(p){
+  if (!p) return false;
+  if (p.type === "Insectes volants") return true;
+  let s; try { s = typeof p.saisies==="string" ? JSON.parse(p.saisies||"{}") : (p.saisies||{}); } catch(_e){ return false; }
+  return Object.values(s||{}).some(v=> v && typeof v==="object" && Object.keys(v).some(k=>k.indexOf("iv_")===0 && parseInt(v[k]||0)>0));
+}
+// Couleur d'un poste selon son état ET les seuils configurés — reprend exactement
+// la logique de getPosteColor() de l'onglet plan d'implantation, pour que la fiche
+// (plan + tableaux) affiche les mêmes couleurs que l'application.
+function couleurPosteSeuil(po, s, seuilsGlobaux){
+  if (!s) return "#22c55e";
+  const sg = seuilsGlobaux || {};
+  const etat = s.etat||"";
+  const consoOrange = (sg.rongeurs && sg.rongeurs.conso_orange) || "25%";
+  const consoRouge  = (sg.rongeurs && sg.rongeurs.conso_rouge)  || "75%";
+  function niveauIdx(n){ if(n==="Totale"||n==="CONSOMMATION TOTALE") return 4; if(n==="75%") return 3; if(n==="50%") return 2; if(n==="25%"||n==="CONSOMMATION PARTIELLE") return 1; return 0; }
+  const etatIdx = niveauIdx(etat);
+  if (etatIdx > 0){ if(etatIdx>=niveauIdx(consoRouge)) return "#ef4444"; if(etatIdx>=niveauIdx(consoOrange)) return "#f59e0b"; return "#22c55e"; }
+  const totalCap = (parseInt(s.cap_souris||0))+(parseInt(s.cap_ratBrun||0))+(parseInt(s.cap_ratNoir||0));
+  if (totalCap > 0){
+    const id = (po && po.id) || "";
+    const isExt = /^RE/i.test(id);
+    const isInt = /^(RI|R\d|S\d)/i.test(id) && !isExt;
+    if (isExt){ const sl=(sg.rongeursExt&&sg.rongeursExt.leger)??1; const sm=(sg.rongeursExt&&sg.rongeursExt.moyen)??3; if(totalCap>=sm) return "#ef4444"; if(totalCap>=sl) return "#f59e0b"; return "#22c55e"; }
+    if (isInt){ const sl=(sg.rongeursInt&&sg.rongeursInt.leger)??1; const sm=(sg.rongeursInt&&sg.rongeursInt.moyen)??3; if(totalCap>=sm) return "#ef4444"; if(totalCap>=sl) return "#f59e0b"; return "#22c55e"; }
+    return "#ef4444";
+  }
+  const ivCats = ["Moucherons","Mouches","Moustiques","Hymenopteres","Lepidopteres","Coleopteres","Punaises","Tipules"];
+  const ivParCat = {}; ivCats.forEach(cat=>{ ivParCat[cat]=parseInt(s["iv_"+cat]||0); });
+  const ivTotal = ivCats.reduce((acc,cat)=>acc+ivParCat[cat],0);
+  if (ivTotal > 0){
+    let maxNiveau = 0;
+    ivCats.forEach(cat=>{ const v=ivParCat[cat]; if(v<=0) return;
+      const sl=((sg.iv&&sg.iv[cat]&&sg.iv[cat].leger))??(cat==="Moucherons"?350:cat==="Mouches"?150:cat==="Moustiques"?60:cat==="Hymenopteres"?50:cat==="Lepidopteres"?45:cat==="Coleopteres"?15:cat==="Punaises"?5:10);
+      const sm=((sg.iv&&sg.iv[cat]&&sg.iv[cat].moyen))??(cat==="Moucherons"?500:cat==="Mouches"?250:cat==="Moustiques"?100:cat==="Hymenopteres"?100:cat==="Lepidopteres"?100:cat==="Coleopteres"?30:cat==="Punaises"?10:20);
+      if(v>=sm) maxNiveau=Math.max(maxNiveau,2); else if(v>=sl) maxNiveau=Math.max(maxNiveau,1);
+    });
+    if (maxNiveau>=2) return "#ef4444"; if (maxNiveau>=1) return "#f59e0b"; return "#22c55e";
+  }
+  const nuisible = (po && po.nuisible) || "Rongeurs";
+  if (nuisible==="Insectes volants") return "#22c55e";
+  const valNum = parseFloat(etat);
+  if (!isNaN(valNum) && valNum > 0){
+    let seuilLeger=null, seuilMoyen=null;
+    if (nuisible==="Teigne"||nuisible==="Teignes"){ seuilLeger=(sg.Teignes&&sg.Teignes.leger)??(sg.teignes&&sg.teignes.leger)??100; seuilMoyen=(sg.Teignes&&sg.Teignes.moyen)??(sg.teignes&&sg.teignes.moyen)??150; }
+    else if (nuisible==="IPS"){ seuilLeger=(sg.IPS&&sg.IPS.leger)??(sg.ips&&sg.ips.leger)??3; seuilMoyen=(sg.IPS&&sg.IPS.moyen)??(sg.ips&&sg.ips.moyen)??8; }
+    else if (nuisible==="Blattes"){ seuilLeger=(sg.Blattes&&sg.Blattes.leger)??(sg.blattes&&sg.blattes.leger)??5; seuilMoyen=(sg.Blattes&&sg.Blattes.moyen)??(sg.blattes&&sg.blattes.moyen)??10; }
+    if (seuilLeger!==null){ if(valNum>=seuilMoyen) return "#ef4444"; if(valNum>=seuilLeger) return "#f59e0b"; return "#22c55e"; }
+    return "#f59e0b";
+  }
+  return "#22c55e";
+}
+// Construit le(s) plan(s) d'implantation pour la fiche, postes colorés selon leur état du passage.
+async function construirePlanFiche(p, postesTous, saisies){
+  const esc = t=>String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  try {
+    const [plans, plansDessines, positions, seuilsRows, passagesAll] = await Promise.all([
+      sbGet("plans").catch(()=>[]),
+      sbGet("plans_dessines").catch(()=>[]),
+      sbGet("poste_positions").catch(()=>[]),
+      sbGet("seuils").catch(()=>[]),
+      sbGet("passages").catch(()=>[]),
+    ]);
+    // On garde aussi bien les plans avec image que les plans dessinés (ex. STEP),
+    // ces derniers étant stockés dans la table plans_dessines (id préfixé "dessine_").
+    const imgPlans = (plans||[]).map(pl=>({ ...pl, img: pl.img_url || pl.img }))
+      .filter(pl => pl.img || pl.dessine || (pl.elements && pl.elements.length) || pl.backgroundImg);
+    const dessinePlans = (plansDessines||[]).map(d=>({
+      id: "dessine_"+d.id, label: d.label, img: null, dessine: true,
+      elements: typeof d.elements==="string" ? (function(){try{return JSON.parse(d.elements||"[]")}catch(_e){return []}})() : (d.elements||[]),
+      backgroundImg: d.background_img || null,
+    }));
+    const allPlans = [...imgPlans, ...dessinePlans];
+    if (!allPlans.length) return "";
+    // Seuils configurés (mêmes que l'onglet plan d'implantation / saisie)
+    let seuilsGlobaux = {};
+    try {
+      if (seuilsRows && seuilsRows.length && seuilsRows[0].data) {
+        seuilsGlobaux = typeof seuilsRows[0].data === "string" ? JSON.parse(seuilsRows[0].data) : seuilsRows[0].data;
+      }
+    } catch(_e) { seuilsGlobaux = {}; }
+    // Saisie fusionnée pour la date du passage (rongeurs + DEIV), comme getSaisie()
+    const dateFiche = p && p.date;
+    const saisiesDate = {};
+    (passagesAll||[]).filter(pa=>pa && pa.date===dateFiche).forEach(pa=>{
+      let sj = {}; try { sj = typeof pa.saisies==="string" ? JSON.parse(pa.saisies||"{}") : (pa.saisies||{}); } catch(_e){ sj={}; }
+      Object.entries(sj).forEach(([id,s])=>{
+        if (!s) return;
+        if (!saisiesDate[id]) saisiesDate[id] = {...s};
+        else { Object.keys(s).forEach(k=>{ if(k.indexOf("iv_")===0) saisiesDate[id][k]=(parseInt(saisiesDate[id][k]||0)+parseInt(s[k]||0)); else if(!saisiesDate[id][k]) saisiesDate[id][k]=s[k]; }); }
+      });
+    });
+    // Fusion avec les saisies transmises par la fiche (au cas où le passage n'est pas encore en base)
+    Object.keys(saisies||{}).forEach(id=>{ if(saisies[id]!=null && saisiesDate[id]==null) saisiesDate[id]=saisies[id]; });
+    // Rendu d'un plan dessiné (sans photo) en SVG inline pour le PDF.
+    function dessineSvgHTML(pl){
+      const els = pl.elements || [];
+      let inner = "";
+      if (pl.backgroundImg) inner += "<image href='"+pl.backgroundImg+"' x='0' y='0' width='900' height='600' preserveAspectRatio='xMidYMid meet'/>";
+      els.forEach(el=>{
+        const c = el.color||"#334155", sw = el.strokeWidth||2;
+        if (el.type==="trait") inner += "<line x1='"+el.x1+"' y1='"+el.y1+"' x2='"+el.x2+"' y2='"+el.y2+"' stroke='"+c+"' stroke-width='"+sw+"' stroke-linecap='round'/>";
+        else if (el.type==="rect"){ const x=Math.min(el.x1,el.x2),y=Math.min(el.y1,el.y2),w=Math.abs(el.x2-el.x1),h=Math.abs(el.y2-el.y1); inner += "<rect x='"+x+"' y='"+y+"' width='"+w+"' height='"+h+"' fill='none' stroke='"+c+"' stroke-width='"+sw+"'/>"; }
+        else if (el.type==="cercle"){ const cx=(el.x1+el.x2)/2,cy=(el.y1+el.y2)/2,rx=Math.abs(el.x2-el.x1)/2,ry=Math.abs(el.y2-el.y1)/2; inner += "<ellipse cx='"+cx+"' cy='"+cy+"' rx='"+rx+"' ry='"+ry+"' fill='none' stroke='"+c+"' stroke-width='"+sw+"'/>"; }
+        else if (el.type==="triangle"){ const x1=el.x1,y1=el.y2,x2=el.x2,y2=el.y2,x3=(el.x1+el.x2)/2,y3=el.y1; inner += "<polygon points='"+x1+","+y1+" "+x2+","+y2+" "+x3+","+y3+"' fill='none' stroke='"+c+"' stroke-width='"+sw+"'/>"; }
+        else if (el.type==="fleche"){ const angle=Math.atan2(el.y2-el.y1,el.x2-el.x1); const len=14; const ax1=el.x2-len*Math.cos(angle-Math.PI/6),ay1=el.y2-len*Math.sin(angle-Math.PI/6); const ax2=el.x2-len*Math.cos(angle+Math.PI/6),ay2=el.y2-len*Math.sin(angle+Math.PI/6); inner += "<line x1='"+el.x1+"' y1='"+el.y1+"' x2='"+el.x2+"' y2='"+el.y2+"' stroke='"+c+"' stroke-width='"+sw+"' stroke-linecap='round'/><line x1='"+el.x2+"' y1='"+el.y2+"' x2='"+ax1+"' y2='"+ay1+"' stroke='"+c+"' stroke-width='"+sw+"' stroke-linecap='round'/><line x1='"+el.x2+"' y1='"+el.y2+"' x2='"+ax2+"' y2='"+ay2+"' stroke='"+c+"' stroke-width='"+sw+"' stroke-linecap='round'/>"; }
+        else if (el.type==="polygone"){ const pts2=(el.points||[]).map(pp=>pp.x+","+pp.y).join(" "); inner += "<polygon points='"+pts2+"' fill='none' stroke='"+c+"' stroke-width='"+sw+"'/>"; }
+        else if (el.type==="porte"){ const x=Math.min(el.x1,el.x2),y=Math.min(el.y1,el.y2),w=Math.abs(el.x2-el.x1)||40; inner += "<line x1='"+x+"' y1='"+y+"' x2='"+x+"' y2='"+(y+w)+"' stroke='"+c+"' stroke-width='"+sw+"'/><path d='M "+x+" "+y+" A "+w+" "+w+" 0 0 1 "+(x+w)+" "+y+"' fill='none' stroke='"+c+"' stroke-width='1' stroke-dasharray='3,3'/><line x1='"+x+"' y1='"+y+"' x2='"+(x+w)+"' y2='"+y+"' stroke='"+c+"' stroke-width='"+sw+"'/>"; }
+        else if (el.type==="fenetre"){ const x=Math.min(el.x1,el.x2),y=Math.min(el.y1,el.y2),w=Math.abs(el.x2-el.x1)||40,h=Math.abs(el.y2-el.y1)||10; inner += "<rect x='"+x+"' y='"+y+"' width='"+w+"' height='"+h+"' fill='none' stroke='"+c+"' stroke-width='"+sw+"'/><line x1='"+x+"' y1='"+(y+h/2)+"' x2='"+(x+w)+"' y2='"+(y+h/2)+"' stroke='"+c+"' stroke-width='"+sw+"'/>"; }
+        else if (el.type==="texte") inner += "<text x='"+el.x1+"' y='"+el.y1+"' font-size='"+(el.fontSize||14)+"' fill='"+c+"' font-family='sans-serif' font-weight='600'>"+esc(el.text)+"</text>";
+      });
+      return "<svg viewBox='0 0 900 600' style='width:100%;display:block;background:#fff'>"+inner+"</svg>";
+    }
+    const posById = {}; (postesTous||[]).forEach(po=>{ posById[po.id]=po; });
+    // Formes par catégorie (mêmes réglages que le plan d'implantation)
+    let posteFormes = { ...POSTE_FORMES_DEFAUT };
+    try { const sf = localStorage.getItem("aads_poste_formes"); if (sf) posteFormes = { ...posteFormes, ...JSON.parse(sf) }; } catch(_e) {}
+    function pastilleFicheHTML(forme, col, label, left, top){
+      const base = "position:absolute;left:"+left+"%;top:"+top+"%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:800;color:#fff;font-family:sans-serif;box-shadow:0 1px 3px rgba(0,0,0,0.5)";
+      if (forme === "triangle"){
+        return "<div style='"+base+";width:17px;height:15px;background:"+col+";-webkit-clip-path:polygon(50% 0,100% 100%,0 100%);clip-path:polygon(50% 0,100% 100%,0 100%);padding-top:5px;box-sizing:border-box'>"+esc(label)+"</div>";
+      }
+      let wh = "width:15px;height:15px;border-radius:50%";
+      if (forme === "carre") wh = "width:14px;height:14px;border-radius:2px";
+      else if (forme === "rect") wh = "width:21px;height:12px;border-radius:2px";
+      else if (forme === "ovale") wh = "width:20px;height:12px;border-radius:50%";
+      return "<div style='"+base+";"+wh+";background:"+col+";border:1.5px solid #fff'>"+esc(label)+"</div>";
+    }
+    const byPlan = {};
+    (positions||[]).forEach(pos=>{ const pid=pos.plan_id; if(!byPlan[pid]) byPlan[pid]=[]; byPlan[pid].push({ id: pos.poste_id||pos.id, x: pos.x, y: pos.y }); });
+    const sections = [];
+    allPlans.forEach(pl=>{
+      const pts = byPlan[pl.id] || [];
+      if (!pts.length) return;
+      const pastilles = pts.map(pt=>{
+        const po = posById[pt.id] || {};
+        const col = couleurPosteSeuil(po, saisiesDate[pt.id], seuilsGlobaux);
+        const forme = posteFormes[categorieForme(po)] || "rond";
+        const left = parseFloat(pt.x)||0, top = parseFloat(pt.y)||0;
+        const label = String(pt.id).slice(0,5);
+        return pastilleFicheHTML(forme, col, label, left, top);
+      }).join("");
+      const fond = pl.img
+        ? "<img src='"+pl.img+"' style='width:100%;display:block'/>"
+        : dessineSvgHTML(pl);
+      sections.push(
+        "<div style='margin-top:10px;break-inside:avoid'>"+
+          "<div style='font-size:12px;font-weight:700;color:#0f2864;margin-bottom:4px'>"+esc(pl.label||"Plan")+"</div>"+
+          "<div style='position:relative;display:block;width:100%;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden'>"+
+            fond+pastilles+
+          "</div>"+
+        "</div>"
+      );
+    });
+    if (!sections.length) return "";
+    const H3 = "font-size:13px;color:#0f2864;border-bottom:1px solid #e5e7eb;padding-bottom:4px;margin:18px 0 8px";
+    return "<div style='"+H3+";page-break-before:always'>Plan d'implantation — état des postes</div>"+
+      "<div style='font-size:11px;color:#374151;margin-bottom:8px'>"+
+        "<span style='display:inline-block;width:11px;height:11px;border-radius:50%;background:#22c55e;vertical-align:middle;margin-right:4px'></span>Sans activité&nbsp;&nbsp;"+
+        "<span style='display:inline-block;width:11px;height:11px;border-radius:50%;background:#f59e0b;vertical-align:middle;margin:0 4px 0 10px'></span>Partielle&nbsp;&nbsp;"+
+        "<span style='display:inline-block;width:11px;height:11px;border-radius:50%;background:#ef4444;vertical-align:middle;margin:0 4px 0 10px'></span>Totale / capture"+
+      "</div>"+
+      sections.join("");
+  } catch(_e){ return ""; }
+}
+
+
+
 // Genere et imprime (PDF navigateur) la fiche d'intervention d'un passage.
-function genererFicheIntervention(p, postesTous, planActions){
+async function genererFicheIntervention(p, postesTous, planActions){
   const esc = t=>String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   let saisies = {};
   try { saisies = typeof p.saisies==="string" ? JSON.parse(p.saisies||"{}") : (p.saisies||{}); } catch(_e){ saisies = {}; }
   const posteById = {}; (postesTous||[]).forEach(po=>{ posteById[po.id]=po; });
   const isDeiv = p.type==="Insectes volants";
   const H3 = "font-size:13px;color:#0f2864;border-bottom:1px solid #e5e7eb;padding-bottom:4px;margin:18px 0 8px";
+  let seuilsFiche = {};
+  try { const sr = await sbGet("seuils").catch(()=>[]); if (sr && sr.length && sr[0].data) seuilsFiche = typeof sr[0].data==="string" ? JSON.parse(sr[0].data) : sr[0].data; } catch(_e){ seuilsFiche = {}; }
 
   // Regroupement intérieur / extérieur (postes rongeurs)
   const grp = { int:[], ext:[] };
@@ -1005,7 +1211,8 @@ function genererFicheIntervention(p, postesTous, planActions){
   const triNat=(a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true});
   grp.int.sort(triNat); grp.ext.sort(triNat);
   const stats=list=>{ const c=list.length; const t=list.filter(x=>_ficheConsomme(x.s)||_ficheCaptures(x.s)>0).length; return {c,t,taux:c>0?Math.round(t/c*100):0}; };
-  const sInt=stats(grp.int), sExt=stats(grp.ext);
+  const _estRongeur = po => ((po&&po.nuisible)||"Rongeurs")==="Rongeurs" && (!po||po.type!=="DEIV");
+  const sInt=stats(grp.int.filter(x=>_estRongeur(x.po))), sExt=stats(grp.ext.filter(x=>_estRongeur(x.po)));
 
   function carte(titre, st, coul){
     return "<div style='flex:1;min-width:150px;border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px'>"+
@@ -1019,15 +1226,18 @@ function genererFicheIntervention(p, postesTous, planActions){
     const cell = "border:1px solid #e5e7eb;padding:4px 8px";
     const rows = list.map(x=>{
       const s=x.s||{}, po=x.po||{};
-      const cap=_ficheCaptures(s), cons=_ficheConsomme(s);
-      const etat = (s.etat!=null && String(s.etat).trim()!=="") ? esc(s.etat) : "RAS";
-      const el = String(s.etat||"").toLowerCase();
-      const etatColor = cons ? ((el.indexOf("tot")>=0||el.indexOf("100")>=0||el.indexOf("75")>=0)?"#dc2626":"#d97706") : "#16a34a";
+      const cap=_ficheCaptures(s);
+      const estDeiv = po.type==="DEIV" || po.nuisible==="Insectes volants";
+      const ivTot = totalCapturesIV(s);
+      const etat = estDeiv ? String(ivTot) : ((s.etat!=null && String(s.etat).trim()!=="") ? esc(s.etat) : "RAS");
+      const etatColor = couleurPosteSeuil(po, s, seuilsFiche);
       const mol = esc(s.molecule || po.molecule_actuelle || "—");
       return "<tr><td style='"+cell+";font-weight:700;font-family:monospace'>"+esc(x.id)+"</td><td style='"+cell+"'>"+esc(po.zone||"")+"</td><td style='"+cell+"'>"+esc(po.macro||"")+"</td>"+
         "<td style='"+cell+";color:"+etatColor+";font-weight:700'>"+etat+"</td><td style='"+cell+"'>"+mol+"</td><td style='"+cell+";text-align:center'>"+(cap>0?cap:"—")+"</td></tr>";
     }).join("");
-    return "<div style='"+H3+"'>"+titre+" — "+st.t+" touché(s) / "+st.c+" contrôlé(s) · "+st.taux+"% d'activité</div>"+
+    const cTable = list.length;
+    const tTable = list.filter(x=>_ficheConsomme(x.s)||_ficheCaptures(x.s)>0||totalCapturesIV(x.s)>0).length;
+    return "<div style='"+H3+"'>"+titre+" — "+tTable+" avec activité / "+cTable+" contrôlé(s)</div>"+
       "<table style='width:100%;border-collapse:collapse;font-size:11px'><thead><tr>"+
       ["Poste","Zone","Macro-zone","État","Molécule","Captures"].map(h=>"<th style='background:#f1f5f9;border:1px solid #e5e7eb;padding:5px 8px;text-align:left'>"+h+"</th>").join("")+
       "</tr></thead><tbody>"+rows+"</tbody></table>";
@@ -1043,13 +1253,14 @@ function genererFicheIntervention(p, postesTous, planActions){
       ["Appareil","Zone","Insectes capturés"].map(h=>"<th style='background:#f1f5f9;border:1px solid #e5e7eb;padding:5px 8px;text-align:left'>"+h+"</th>").join("")+
       "</tr></thead><tbody>"+rows+"</tbody></table>";
   } else {
-    corps = "<div style='display:flex;gap:12px;flex-wrap:wrap;margin:14px 0'>"+
-        carte("Activité intérieur", sInt, sInt.taux>=50?"#dc2626":sInt.taux>=20?"#d97706":"#16a34a")+
-        carte("Activité extérieur", sExt, sExt.taux>=50?"#dc2626":sExt.taux>=20?"#d97706":"#16a34a")+
+    corps = "<div style='font-size:11px;color:#6b7280;margin:14px 0 4px;font-style:italic'>Taux calculé uniquement sur les postes rongeurs (consommation d'appât / captures).</div>"+
+      "<div style='display:flex;gap:12px;flex-wrap:wrap;margin:0 0 14px'>"+
+        carte("Activité rongeurs — intérieur", sInt, sInt.taux>=50?"#dc2626":sInt.taux>=20?"#d97706":"#16a34a")+
+        carte("Activité rongeurs — extérieur", sExt, sExt.taux>=50?"#dc2626":sExt.taux>=20?"#d97706":"#16a34a")+
         "<div style='flex:1;min-width:150px;border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px'>"+
-          "<div style='font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase'>Postes touchés</div>"+
+          "<div style='font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase'>Postes rongeurs touchés</div>"+
           "<div style='font-size:15px;font-weight:800;color:#0f2864;margin-top:4px'>Int. "+sInt.t+" · Ext. "+sExt.t+"</div>"+
-          "<div style='font-size:11px;color:#374151'>sur "+(sInt.c+sExt.c)+" postes contrôlés</div>"+
+          "<div style='font-size:11px;color:#374151'>sur "+(sInt.c+sExt.c)+" postes rongeurs contrôlés</div>"+
         "</div>"+
       "</div>"+
       tableGroupe("Postes intérieurs", grp.int, sInt)+
@@ -1058,6 +1269,14 @@ function genererFicheIntervention(p, postesTous, planActions){
 
   // Recommandations du jour = actions du plan d'actions datées du même jour
   const recos = (planActions||[]).filter(a=> String(a.date_detection||a.dateDetection||"")===String(p.date));
+  // Photos des recommandations chargées à la demande (plus en liste : anti-timeout)
+  await Promise.all(recos.map(async a => {
+    if (a._photosLoaded || (Array.isArray(a.photos) && a.photos.length)) return;
+    try {
+      const d = await sbFetch("plan_actions?id=eq." + encodeURIComponent(a.id) + "&contrat=eq." + CLIENT_CONFIG.contrat + filtreSite("plan_actions") + "&select=photos", "GET");
+      if (Array.isArray(d) && d[0]) { const ph = d[0].photos; a.photos = typeof ph==="string" ? (function(){try{return JSON.parse(ph||"[]")}catch(_e){return []}})() : (ph||[]); }
+    } catch(_e){}
+  }));
   const recosHtml = recos.length ? recos.map(a=>{
     let photos=[]; try{ photos = Array.isArray(a.photos)?a.photos:(typeof a.photos==="string"?JSON.parse(a.photos||"[]"):[]); }catch(_e){ photos=[]; }
     const ph = (photos||[]).filter(x=>x&&x.url).map(x=>"<img src='"+x.url+"' style='max-width:180px;max-height:135px;border-radius:6px;border:1px solid #e2e8f0;object-fit:cover;margin:4px'/>").join("");
@@ -1079,6 +1298,7 @@ function genererFicheIntervention(p, postesTous, planActions){
   "</div>";
 
   const typeLabel = isDeiv ? "Passage DEIV (insectes volants)" : ("Contrôle périodique"+(p.type&&p.type!=="Rongeurs"?" — "+esc(p.type):""));
+  const planHtml = await construirePlanFiche(p, postesTous, saisies);
   const body =
     "<h1 style='font-size:20px;color:#0f2864;margin:0 0 6px'>Fiche d'intervention</h1>"+
     "<div style='display:flex;gap:22px;flex-wrap:wrap;font-size:12px;color:#374151;margin-bottom:6px'>"+
@@ -1090,6 +1310,7 @@ function genererFicheIntervention(p, postesTous, planActions){
     corps+
     "<div style='"+H3+"'>Notes du passage</div>"+notesHtml+
     "<div style='"+H3+"'>Recommandations du jour</div>"+recosHtml+
+    planHtml+
     signatureHtml;
   exportHTML("Fiche intervention "+esc(p.date)+(p.site?" - "+esc(p.site):""), body);
 }
@@ -1527,7 +1748,7 @@ function Interventions({ reinterventions, setReinterventions, passagesGlobaux, s
   const [seuilsInterv, setSeuilsInterv] = useState({}); // seuils complets tous types
 
   const [planActions, setPlanActions] = useState([]);
-  useEffect(function(){ sbGet("plan_actions").then(function(d){ if(d&&d.length>0) setPlanActions(d.map(function(a){ return {...a, photos: typeof a.photos==="string"?(function(){try{return JSON.parse(a.photos||"[]")}catch(_e){return []}})():(a.photos||[]) }; })); }).catch(function(){}); }, []);
+  useEffect(function(){ sbGet("plan_actions", PLAN_ACTIONS_COLS).then(function(d){ if(Array.isArray(d)&&d.length>0) setPlanActions(d.map(function(a){ return {...a, photos: []}; })); }).catch(function(){}); }, []);
   useEffect(() => {
     sbGet("postes").then(data => {
       if (data && data.length > 0) {
@@ -4006,7 +4227,7 @@ function TauxActiviteChart({ passages, postes }) {
 
   function filterPassagesByPeriode(list, anneeOverride) {
     return list.filter(p => {
-      if (p.type === "Insectes volants") return false; // exclure les passages DEIV
+      if (estPassageDeiv(p)) return false; // exclure les passages DEIV
       const d = pd(p.date);
       if (!d) return false;
       if (anneeOverride) {
@@ -4396,7 +4617,7 @@ function CapturesChart({ passages, postes }) {
 
   function filterPassagesByPeriode(list, anneeOverride) {
     return list.filter(p => {
-      if (p.type === "Insectes volants") return false;
+      if (estPassageDeiv(p)) return false;
       const d = pd(p.date);
       if (!d) return false;
       if (anneeOverride) {
@@ -4645,7 +4866,7 @@ function PostesTouchesChart({ passages, postes }) {
 
   function filterPassagesByPeriode(list, anneeOverride) {
     return list.filter(p => {
-      if (p.type === "Insectes volants") return false;
+      if (estPassageDeiv(p)) return false;
       const d = pd(p.date);
       if (!d) return false;
       if (anneeOverride) {
@@ -4908,7 +5129,7 @@ function DeivEvolutionStandaloneChart({ passages }) {
   };
 
   const [selectedCats, setSelectedCats] = usePersistedValue("DeivEvolution_selectedCats", []); // [] = Total toutes especes
-  const [filterAnnee, setFilterAnnee] = usePersistedValue("DeivEvolution_filterAnnee", anneeDefaut(passages.filter(p=>p.type==="Insectes volants")));
+  const [filterAnnee, setFilterAnnee] = usePersistedValue("DeivEvolution_filterAnnee", anneeDefaut(passages.filter(estPassageDeiv)));
   const [selectedAnnees, setSelectedAnnees] = usePersistedValue("DeivEvolution_selectedAnnees", []);
   const [filterTrimestre, setFilterTrimestre] = usePersistedValue("DeivEvolution_filterTrimestre", "Tous");
   const [filterMois, setFilterMois] = usePersistedValue("DeivEvolution_filterMois", "Tous");
@@ -4934,7 +5155,7 @@ function DeivEvolutionStandaloneChart({ passages }) {
   const MOIS_LABELS = ["Jan.","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Dec"];
 
   // Ne garder QUE les passages DEIV
-  const passagesDeiv = passages.filter(p => p.type === "Insectes volants");
+  const passagesDeiv = passages.filter(estPassageDeiv);
 
   const annees = [...new Set(passagesDeiv.map(p=>{ const d=pd(p.date); return d&&!isNaN(d)?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>a-b);
 
@@ -5208,7 +5429,7 @@ function DeivEvolutionStandaloneChart({ passages }) {
 
 function DeivParAppareilChart({ passages, postes }) {
   const [selectedDeiv, setSelectedDeiv] = usePersistedValue("DeivParAppareil_selectedDeiv", "");
-  const [filterAnnee, setFilterAnnee] = usePersistedValue("DeivParAppareil_filterAnnee", anneeDefaut(passages.filter(p=>p.type==="Insectes volants")));
+  const [filterAnnee, setFilterAnnee] = usePersistedValue("DeivParAppareil_filterAnnee", anneeDefaut(passages.filter(estPassageDeiv)));
   const [selectedAnnees, setSelectedAnnees] = usePersistedValue("DeivParAppareil_selectedAnnees", []);
   const [filterTrimestre, setFilterTrimestre] = usePersistedValue("DeivParAppareil_filterTrimestre", "Tous");
   const [filterMois, setFilterMois] = usePersistedValue("DeivParAppareil_filterMois", "Tous");
@@ -5254,7 +5475,7 @@ function DeivParAppareilChart({ passages, postes }) {
     return na - nb;
   });
 
-  const passagesDeiv = passages.filter(p => p.type === "Insectes volants");
+  const passagesDeiv = passages.filter(estPassageDeiv);
   const annees = [...new Set(passagesDeiv.map(p=>{ const d=pd(p.date); return d&&!isNaN(d)?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>a-b);
 
   function filterPassagesByPeriode(list, anneeOverride) {
@@ -5831,7 +6052,7 @@ function ToxiquePlaceboChart({ passages, postes }) {
 
   function buildStats(anneeFilter) {
     const passagesFiltres = passages.filter(p=>{
-      if (p.type==="Insectes volants") return false;
+      if (estPassageDeiv(p)) return false;
       const d=pd(p.date); if(!d||isNaN(d)) return false;
       if (anneeFilter && d.getFullYear()!==parseInt(anneeFilter)) return false;
       if (!anneeFilter && selectedAnnees.length>0 && !selectedAnnees.includes(d.getFullYear())) return false;
@@ -6004,7 +6225,7 @@ function MoleculesChart({ passages, postes }) {
 
   function filterPassages(list) {
     return list.filter(p=>{
-      if (p.type==="Insectes volants") return false;
+      if (estPassageDeiv(p)) return false;
       const d = pd(p.date); if (!d) return false;
       if (selectedAnnees.length>0) return selectedAnnees.includes(d.getFullYear());
       if (filterAnnee!=="Toutes") return d.getFullYear()===parseInt(filterAnnee);
@@ -6134,7 +6355,7 @@ function Statistiques() {
   useEffect(() => {
     sbGet("passages").then(data => { if (data && data.length > 0) setPassages(data); }).catch(()=>{});
     sbGet("postes").then(data => { if (data && data.length > 0) setPostes(data); }).catch(()=>{});
-    sbGet("plan_actions").then(data => { if (data && data.length > 0) setActions(data); }).catch(()=>{});
+    sbGet("plan_actions", PLAN_ACTIONS_COLS).then(data => { if (Array.isArray(data) && data.length > 0) setActions(data); }).catch(()=>{});
     sbGet("reinterventions").then(data => { if (data && data.length > 0) setReinterventions(data); }).catch(()=>{});
   }, []);
 
@@ -6808,23 +7029,33 @@ function PlanActions() {
     }).catch(()=>{});
   }, []);
 
-  // Charger depuis Supabase
+  // Charger depuis Supabase — SANS les photos (anti-timeout). Photos à la demande.
   useEffect(() => {
-    sbGet("plan_actions").then(data => {
-      if (data && data.length > 0) {
-        setActions(data.map(a => ({
-          ...a,
-          titre5m: a.titre5m||a.titre||"Méthode",
-          dateDetection: a.date_detection||a.dateDetection||"",
-          piegeRef: a.piege_ref||a.piegeRef||"",
-          photos: typeof a.photos === "string" ? JSON.parse(a.photos || "[]") : (a.photos || [])
-        })).sort((x,y)=>{
-          const pd=d=>{const p=(d||"").split("/");return p.length===3?new Date(p[2]+"-"+p[1]+"-"+p[0]):new Date(0);};
-          return pd(y.dateDetection)-pd(x.dateDetection);
-        }));
+    sbGet("plan_actions", PLAN_ACTIONS_COLS).then(data => {
+      if (Array.isArray(data) && data.length > 0) {
+        const mapped = [];
+        data.forEach(a => { try {
+          mapped.push({ ...a, titre5m: a.titre5m||a.titre||"Méthode", dateDetection: a.date_detection||a.dateDetection||"", piegeRef: a.piege_ref||a.piegeRef||"", photos: [], _photosLoaded: false });
+        } catch(_e){} });
+        mapped.sort((x,y)=>{ const pd=d=>{const p=(d||"").split("/");return p.length===3?new Date(p[2]+"-"+p[1]+"-"+p[0]):new Date(0);}; return pd(y.dateDetection)-pd(x.dateDetection); });
+        if (mapped.length>0) setActions(mapped);
       }
     }).catch(() => {});
   }, []);
+
+  async function chargerPhotosAction(id) {
+    try {
+      const data = await sbFetch("plan_actions?id=eq." + encodeURIComponent(id) + "&contrat=eq." + CLIENT_CONFIG.contrat + filtreSite("plan_actions") + "&select=photos", "GET");
+      if (Array.isArray(data) && data[0]) {
+        const ph = data[0].photos;
+        const parsed = typeof ph === "string" ? (function(){try{return JSON.parse(ph||"[]")}catch(_e){return []}})() : (ph||[]);
+        const arr = Array.isArray(parsed) ? parsed : [];
+        setActions(prev => prev.map(a => a.id===id ? {...a, photos:arr, _photosLoaded:true} : a));
+        return arr;
+      }
+    } catch(_e){}
+    return [];
+  }
 
   function resetDraft() {
     setDraft({ titre5m: "Méthode", type: "corrective", priorite: "haute", zone: "", description: "", recommandation: "", technicien: "", piegeRef: "", dateDetection: new Date().toLocaleDateString("fr-FR") });
@@ -6840,6 +7071,8 @@ function PlanActions() {
   function openEdit(a) {
     setDraft({ titre5m: a.titre5m||"Méthode", type: a.type, priorite: a.priorite, zone: a.zone, description: a.description, recommandation: a.recommandation, technicien: a.technicien || "", piegeRef: a.piegeRef || "", dateDetection: a.dateDetection || new Date().toLocaleDateString("fr-FR") });
     setDraftPhotos(a.photos || []);
+    // Photos chargées à la demande (plus en liste pour éviter le timeout)
+    if (!a._photosLoaded) chargerPhotosAction(a.id).then(ph => setDraftPhotos(ph));
     setEditId(a.id);
     setShowForm(true);
   }
@@ -6942,12 +7175,14 @@ function PlanActions() {
               ↩ Annuler
             </button>
           )}
-          <ExportBtn label="Actions" onClick={() => {
+          <ExportBtn label="Actions" onClick={async () => {
             const PCOLOR = { haute:"#ef4444", moyenne:"#f59e0b", basse:"#3b82f6" };
             const SCOLOR = { "En cours":"#f59e0b", "Planifiée":"#3b82f6", "Résolue":"#22c55e", Vigilance:"#f59e0b" };
             const MCOLOR = { "Méthode":"#3b82f6","Milieu":"#22c55e","Matière":"#f59e0b","Main d'oeuvre":"#8b5cf6","Matériel":"#ef4444" };
             const badge = (val, color) => `<span style='background:${color}22;color:${color};border:1px solid ${color}44;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700'>${val}</span>`;
-            const rows = filtered.map(a => {
+            // Charger les photos à la demande (plus en liste) pour l'export
+            const filtrEnrich = await Promise.all(filtered.map(async a => a._photosLoaded ? a : {...a, photos: await chargerPhotosAction(a.id)}));
+            const rows = filtrEnrich.map(a => {
               const pc = PCOLOR[a.priorite]||"#7a90aa";
               const sc = SCOLOR[a.statut]||"#7a90aa";
               const mc = MCOLOR[a.titre5m]||"#7a90aa";
@@ -7138,7 +7373,7 @@ function PlanActions() {
             const isSel = sel === a.id;
             return (
               <div key={a.id}>
-                <div onClick={()=>setSel(isSel?null:a.id)} style={{ padding: "10px 16px", display: "grid", gridTemplateColumns: "60px 90px 100px 110px 80px 90px 150px 80px", gap: 8, alignItems: "center", borderTop: "1px solid #243352", background: isSel?"#243352":i%2===0?"transparent":"#ffffff04", cursor:"pointer" }}>
+                <div onClick={()=>{ const willOpen=!isSel; setSel(willOpen?a.id:null); if(willOpen && !a._photosLoaded) chargerPhotosAction(a.id); }} style={{ padding: "10px 16px", display: "grid", gridTemplateColumns: "60px 90px 100px 110px 80px 90px 150px 80px", gap: 8, alignItems: "center", borderTop: "1px solid #243352", background: isSel?"#243352":i%2===0?"transparent":"#ffffff04", cursor:"pointer" }}>
                   <div>
                     <span style={{ fontSize: 9, fontWeight: 700, background: a.type === "corrective" ? "#ef444422" : "#3b82f622", color: a.type === "corrective" ? "#ef4444" : "#3b82f6", border: "1px solid " + (a.type === "corrective" ? "#ef444444" : "#3b82f644"), borderRadius: 4, padding: "1px 5px" }}>
                       {a.type === "corrective" ? "COR" : "PRÉ"}
@@ -7356,7 +7591,7 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
   const [showActionForm, setShowActionForm] = useState(false);
   const [actionDraft, setActionDraft] = useState({ poste:"", titre5m:"Méthode", type:"corrective", description:"", recommandation:"", priorite:"haute", zone:"" });
   const [actionPhotos, setActionPhotos] = useState([]);
-  useEffect(function(){ sbGet("plan_actions").then(function(d){ if(d&&d.length>0) setPlanActionsSaisie(d.map(function(a){ return {...a, photos: typeof a.photos==="string"?(function(){try{return JSON.parse(a.photos||"[]")}catch(_e){return []}})():(a.photos||[]) }; })); }).catch(function(){}); }, []);  // Seuils partagés via props App
+  useEffect(function(){ sbGet("plan_actions", PLAN_ACTIONS_COLS).then(function(d){ if(Array.isArray(d)&&d.length>0) setPlanActionsSaisie(d.map(function(a){ return {...a, photos: []}; })); }).catch(function(){}); }, []);  // Seuils partagés via props App
   const seuils = seuilsGlobaux;
   const setSeuils = setSeuilsGlobaux;
 
@@ -14131,8 +14366,8 @@ function Audit({ seuilsGlobaux }) {
         setAudits(data.map(a => ({ ...a, reponses: typeof a.reponses==="string"?JSON.parse(a.reponses||"{}"):a.reponses||{}, obsItems: typeof a.obs_items==="string"?JSON.parse(a.obs_items||"[]"):a.obs_items||[] })));
       }
     }).catch(()=>{});
-    sbGet("plan_actions").then(data => {
-      if (data && data.length > 0) {
+    sbGet("plan_actions", "id,statut").then(data => {
+      if (Array.isArray(data) && data.length > 0) {
         const map = {};
         data.forEach(a => { map[a.id] = a.statut || "Planifiée"; });
         setActionsStatuts(map);
