@@ -9629,7 +9629,7 @@ function ContratDevis() {
 
   useEffect(() => {
     sbGet("contrats_devis").then(data => {
-      if (data && data.length > 0) setDocs(data.map(d => ({...d, montantHT: d.montant_ht, photos:[]})));
+      if (data && data.length > 0) setDocs(data.map(d => ({...d, montantHT: d.montant_ht, photos: (typeof d.photos==="string" ? (function(){try{return JSON.parse(d.photos||"[]")}catch(_e){return []}})() : (d.photos||[])) })));
     }).catch(()=>{});
   }, []);
 
@@ -9686,11 +9686,11 @@ function ContratDevis() {
     const ttcVal = draft.montantHT ? +(parseFloat(draft.montantHT) * (1 + draft.tva / 100)).toFixed(2) : 0;
     if (editId !== null) {
       setDocs(prev => prev.map(d => d.id === editId ? { ...d, ...draft, ttc:ttcVal, photos: draftPhotos } : d));
-      sbUpdate("contrats_devis", editId, { type:draft.type, ref:draft.ref, intitule:draft.intitule, client:draft.client, prestation:draft.prestation, montant_ht:parseFloat(draft.montantHT)||0, tva:draft.tva, debut:draft.debut, fin:draft.reconduction==="tacite"?"":draft.fin||"", statut:draft.statut, notes:draft.notes||"", reconduction:draft.reconduction||"determinee" });
+      sbUpdate("contrats_devis", editId, { type:draft.type, ref:draft.ref, intitule:draft.intitule, client:draft.client, prestation:draft.prestation, montant_ht:parseFloat(draft.montantHT)||0, tva:draft.tva, debut:draft.debut, fin:draft.reconduction==="tacite"?"":draft.fin||"", statut:draft.statut, notes:draft.notes||"", reconduction:draft.reconduction||"determinee", photos:JSON.stringify(draftPhotos||[]) });
     } else {
       const id = String(Date.now());
       setDocs(prev => [{ ...draft, ttc:ttcVal, id, photos: draftPhotos }, ...prev]);
-      sbUpsert("contrats_devis", { id, contrat:CLIENT_CONFIG.contrat, type:draft.type, ref:draft.ref, intitule:draft.intitule, client:draft.client, prestation:draft.prestation, montant_ht:parseFloat(draft.montantHT)||0, tva:draft.tva, debut:draft.debut, fin:draft.reconduction==="tacite"?"":draft.fin||"", statut:draft.statut, notes:draft.notes||"", reconduction:draft.reconduction||"determinee" });
+      sbUpsert("contrats_devis", { id, contrat:CLIENT_CONFIG.contrat, type:draft.type, ref:draft.ref, intitule:draft.intitule, client:draft.client, prestation:draft.prestation, montant_ht:parseFloat(draft.montantHT)||0, tva:draft.tva, debut:draft.debut, fin:draft.reconduction==="tacite"?"":draft.fin||"", statut:draft.statut, notes:draft.notes||"", reconduction:draft.reconduction||"determinee", photos:JSON.stringify(draftPhotos||[]) });
     }
     resetDraft(); setShowForm(false);
   }
