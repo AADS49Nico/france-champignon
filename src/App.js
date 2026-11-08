@@ -1403,7 +1403,7 @@ function SiteSwitcher({ compact }) {
                backgroundImage:"url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='white' stroke-width='2' fill='none'/></svg>\")",
                backgroundRepeat:"no-repeat", backgroundPosition:"right 12px center" }}>
       {SITES_DISPO.map(function(s){
-        return <option key={s.id} value={s.id} style={{ background:"var(--bg-2)", color:"#fff" }}>{s.site}</option>;
+        return <option key={s.id} value={s.id} style={{ background:"#1d4ed8", color:"#fff" }}>{s.site}</option>;
       })}
     </select>
   );
@@ -8891,7 +8891,7 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
                             {mol
                               ? <span style={{fontSize:9,fontWeight:700,color:mc2,background:mc2+"22",borderRadius:4,padding:"2px 6px",display:"inline-block"}}>{mol}</span>
                               : isActif
-                                ? <span style={{fontSize:10,color:"var(--border)"}}>—</span>
+                                ? <span style={{fontSize:10,color:"var(--text-faint)"}}>—</span>
                                 : <span style={{fontSize:10,color:"var(--bg-2)"}}>·</span>}
                           </td>
                         );
@@ -9458,7 +9458,7 @@ function Habilitations() {
                 {[{id:"3d",label:"Equipe 3D",color:"#3b82f6"},{id:"assainissement",label:"Assainissement",color:"#0ea5e9"}].map(eq=>{
                   const active=form.equipe===eq.id;
                   return <button key={eq.id} type="button" onClick={()=>setForm(p=>({...p,equipe:eq.id}))}
-                    style={{background:active?eq.color+"22":"var(--bg-2)",color:active?eq.color:"var(--text-label)",border:"1px solid "+(active?eq.color:"var(--border)"),borderRadius:6,padding:"4px 9px",fontSize:10,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit",flex:1}}>{eq.label}</button>;
+                    style={{background:active?eq.color+"22":"var(--bg-2)",color:active?eq.color:"var(--text-label)",border:"1px solid "+(active?eq.color:"var(--text-faint)"),borderRadius:6,padding:"4px 9px",fontSize:10,fontWeight:active?700:400,cursor:"pointer",fontFamily:"inherit",flex:1}}>{eq.label}</button>;
                 })}
               </div>
             </div>
@@ -15442,7 +15442,7 @@ export default function App() {
             style={{width:"100%",background:"#1d4ed8",color:"#fff",border:"none",borderRadius:9,padding:"12px",fontSize:14,fontWeight:700,cursor:authLoading||!authInput?"default":"pointer",fontFamily:"inherit",opacity:authLoading||!authInput?0.6:1,transition:"opacity 0.2s"}}>
             {authLoading ? "Vérification..." : "Accéder au portail"}
           </button>
-          <div style={{textAlign:"center",marginTop:20,fontSize:11,color:"var(--border)"}}>
+          <div style={{textAlign:"center",marginTop:20,fontSize:11,color:"var(--text-faint)"}}>
             AADS — Anjou Assainissement Dératisation Services
           </div>
         </div>
@@ -15808,7 +15808,7 @@ function AppPortail({ isAdmin, onLogout, aadsTheme, onToggleTheme }) {
                 return (
                   <React.Fragment key={id}>
                     {showGroupTitle && (
-                      <div style={{ padding: "10px 16px 3px", fontSize: 9, fontWeight: 800, color: "var(--border)", letterSpacing: 1.5, textTransform: "uppercase" }}>{grp.group}</div>
+                      <div style={{ padding: "10px 16px 3px", fontSize: 9, fontWeight: 800, color:"var(--text-label)", letterSpacing: 1.5, textTransform: "uppercase" }}>{grp.group}</div>
                     )}
                     <div
                       draggable
@@ -15878,7 +15878,7 @@ function AppPortail({ isAdmin, onLogout, aadsTheme, onToggleTheme }) {
                 ))}
               </div>
             )}
-            <div style={{ marginTop: 8, fontSize: 9, color: "var(--border)" }}>Portail v5.0 - {CLIENT_CONFIG.nom}</div>
+            <div style={{ marginTop: 8, fontSize: 9, color:"var(--text-faint)" }}>Portail v5.0 - {CLIENT_CONFIG.nom}</div>
           </div>
         </aside>
         )}
