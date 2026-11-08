@@ -9654,6 +9654,9 @@ function ContratDevis() {
       if (res.ok) {
         const url = SUPABASE_URL + "/storage/v1/object/public/documents/" + path;
         setDocs(prev => prev.map(d => d.id===docId ? {...d, url_doc:url} : d));
+        // IMPORTANT : persister le lien du document en base, sinon il est perdu
+        // au rechargement (le PDF « ne tenait pas » dans le contrat).
+        sbUpdate("contrats_devis", docId, { url_doc: url, fichier: file.name });
       }
     } catch(e) { console.error(e); }
     setUploading(null);
