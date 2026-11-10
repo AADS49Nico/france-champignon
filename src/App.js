@@ -268,7 +268,25 @@ async function sbFetch(path, method, body, extraHeaders) {
   return res.json().catch(() => true); // succes, corps non-JSON ou vide -> true plutot que null
 }
 const PLAN_ACTIONS_COLS = "id,contrat,site,titre,titre5m,type,priorite,zone,description,recommandation,technicien,piege_ref,statut,date_detection";
+// Tables du RÉFÉRENTIEL : communes à TOUS les sites (pas de filtre par contrat).
+// -> mêmes onglets/listes sur tous les sites (produits + leurs PDF, habilitations,
+// agréments, contrats/devis, réglementations), et un ajout sur un site est visible partout.
+const REFERENTIEL_TABLES = ["produits_biocides","produits_docs","habilitations","habilitations_docs","agrements","agrements_docs","reglementations","contrats_devis"];
+function estReferentiel(table) { return REFERENTIEL_TABLES.indexOf(String(table).split("?")[0]) !== -1; }
 async function sbGet(table, select) {
+  // Référentiel : partagé entre tous les sites -> aucun filtre contrat/site.
+  if (estReferentiel(table)) {
+    const baseRef = table + "?" + (select ? "select=" + select + "&" : "") + "order=id.asc";
+    const PAGER = 1000; let allRef = []; let offRef = 0;
+    for (;;) {
+      const chunk = await sbFetch(baseRef + "&limit=" + PAGER + "&offset=" + offRef, "GET");
+      if (!Array.isArray(chunk)) { return offRef === 0 ? await sbFetch(baseRef, "GET") : allRef; }
+      allRef = allRef.concat(chunk);
+      if (chunk.length < PAGER) break;
+      offRef += PAGER; if (offRef > 200000) break;
+    }
+    return allRef;
+  }
   // Attendre que le contrat soit chargé (multi-site : il arrive après la sélection
   // du site) pour éviter les requêtes à vide au démarrage.
   if (!CLIENT_CONFIG.contrat) {
@@ -304,7 +322,7 @@ async function sbUpsert(table, data) {
   return sbFetch(table, "POST", d, { Prefer: "resolution=merge-duplicates,return=representation" });
 }
 async function sbUpdate(table, id, data) {
-  return sbFetch(table + "?id=eq." + id + "&contrat=eq." + CLIENT_CONFIG.contrat + filtreSite(table), "PATCH", data, { Prefer: "return=representation" });
+  return sbFetch(table + "?id=eq." + id + (estReferentiel(table) ? "" : "&contrat=eq." + CLIENT_CONFIG.contrat + filtreSite(table)), "PATCH", data, { Prefer: "return=representation" });
 }
 // Variante stricte : leve une exception en cas d'echec HTTP reel, avec le detail de l'erreur Supabase.
 // A utiliser uniquement la ou l'appelant gere explicitement l'echec (ex: ajout de postes sur un plan).
@@ -339,7 +357,7 @@ async function sbUpsertStrict(table, data) {
   return res.json().catch(() => true);
 }
 async function sbDelete(table, id) {
-  return sbFetch(table + "?id=eq." + id + "&contrat=eq." + CLIENT_CONFIG.contrat + filtreSite(table), "DELETE");
+  return sbFetch(table + "?id=eq." + id + (estReferentiel(table) ? "" : "&contrat=eq." + CLIENT_CONFIG.contrat + filtreSite(table)), "DELETE");
 }
 
 // Place ou deplace un poste sur un plan. Un poste ne peut etre que sur un seul plan a la fois
@@ -2176,6 +2194,7 @@ function Cartographie({ seuilsGlobaux }) {
   const [search, setSearch] = useState("");
   const [sel, setSel] = useState(null);
   const [filterMacro, setFilterMacro] = useState("Toutes");
+  const [filterTypePoste, setFilterTypePoste] = useState("tous"); // tous / RE / RI (type de poste)
   const [filterAnnee, setFilterAnnee] = useState(null);
   const [editingConso, setEditingConso] = useState(false);
   const [consoEdit, setConsoEdit] = useState({});
@@ -2346,6 +2365,7 @@ function Cartographie({ seuilsGlobaux }) {
     if (subtab === "insectes" && !INSECTES_TYPES.includes(nuisible)) return false;
     if (subtab === "insectes" && filterInsecte !== "Tous" && nuisible !== filterInsecte) return false;
     if (filterMacro !== "Toutes" && p.macro !== filterMacro) return false;
+    if (subtab === "rongeurs" && filterTypePoste !== "tous" && (p.type||"") !== filterTypePoste) return false;
     if (search) {
       const s = search.toLowerCase();
       return p.id.toLowerCase().includes(s) || p.zone.toLowerCase().includes(s);
@@ -2480,7 +2500,15 @@ function Cartographie({ seuilsGlobaux }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14, alignItems: "center" }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher N° ou zone..."
           style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 14px", color: "var(--text-1)", fontSize: 13, fontFamily: "inherit", width: 220 }} />
-        <select value={filterMacro} onChange={e => setFilterMacro(e.target.value)}
+        {subtab === "rongeurs" && (
+          <select value={filterTypePoste} onChange={e => setFilterTypePoste(e.target.value)} title="Filtrer par type de poste"
+            style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", color: "var(--text-1)", fontSize: 12, fontFamily: "inherit" }}>
+            <option value="tous">Tous types</option>
+            <option value="RE">Extérieurs (RE)</option>
+            <option value="RI">Intérieurs (RI)</option>
+          </select>
+        )}
+        <select value={filterMacro} onChange={e => setFilterMacro(e.target.value)} title="Filtrer par macro-zone"
           style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", color: "var(--text-1)", fontSize: 12, fontFamily: "inherit" }}>
           {macros.map(m => <option key={m}>{m}</option>)}
         </select>
