@@ -14357,10 +14357,14 @@ function Audit({ seuilsGlobaux }) {
 
   const [audits, setAudits] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [draft, setDraft] = useState({ date:"", auditeur:"", observations:"" });
+  const [draft, setDraft] = useState({ date:"", auditeur:"", observations:"", actionsDepuis:"" });
   const [obsItems, setObsItems] = useState([]); // observations dynamiques
   const [reponses, setReponses] = useState({});
   const [editId, setEditId] = useState(null);
+  // Brouillon d'audit en cours : sauvegarde locale pour tout récupérer si on quitte
+  // l'audit (saisie mobile) avant d'avoir enregistré.
+  const BROUILLON_KEY = "aads_audit_brouillon_" + (CLIENT_CONFIG.contrat || "x");
+  const brouillonCharge = React.useRef(false);
   const [sel, setSel] = useState(null);
   const [actionsStatuts, setActionsStatuts] = useState({}); // { actionId: statut } pour le badge de suivi
   const [creatingAction, setCreatingAction] = useState(null); // id de l'observation en cours de creation
@@ -14435,19 +14439,47 @@ function Audit({ seuilsGlobaux }) {
   function scoreColor(s) { return s>=85?"#22c55e":s>=60?"#f59e0b":"#ef4444"; }
 
   function resetForm() {
-    setDraft({date:"",auditeur:"",observations:""});
+    setDraft({date:"",auditeur:"",observations:"",actionsDepuis:""});
     setReponses({});
     setObsItems([]);
     setEditId(null);
+    try { localStorage.removeItem(BROUILLON_KEY); } catch(_e) {}
   }
 
   function openEdit(a) {
-    setDraft({date:a.date||"",auditeur:a.auditeur||"",observations:a.observations||""});
+    setDraft({date:a.date||"",auditeur:a.auditeur||"",observations:a.observations||"",actionsDepuis:a.actions_depuis||a.actionsDepuis||""});
     setReponses(a.reponses||{});
     setObsItems(a.obsItems||[]);
     setEditId(a.id);
     setShowForm(true);
   }
+
+  // RÉCUPÉRATION : au montage, si un brouillon d'audit non enregistré existe, on le
+  // restaure et on rouvre le formulaire (on ne perd rien en quittant/revenant).
+  useEffect(() => {
+    if (brouillonCharge.current) return;
+    brouillonCharge.current = true;
+    try {
+      const raw = localStorage.getItem(BROUILLON_KEY);
+      if (!raw) return;
+      const b = JSON.parse(raw);
+      const vide = (!b.draft || (!b.draft.date && !b.draft.auditeur && !b.draft.observations && !b.draft.actionsDepuis))
+        && (!b.reponses || Object.keys(b.reponses).length === 0)
+        && (!b.obsItems || b.obsItems.length === 0);
+      if (vide) { localStorage.removeItem(BROUILLON_KEY); return; }
+      setDraft({ date:(b.draft&&b.draft.date)||"", auditeur:(b.draft&&b.draft.auditeur)||"", observations:(b.draft&&b.draft.observations)||"", actionsDepuis:(b.draft&&b.draft.actionsDepuis)||"" });
+      setReponses(b.reponses || {});
+      setObsItems(b.obsItems || []);
+      setEditId(b.editId || null);
+      setShowForm(true);
+    } catch(_e) {}
+  }, []);
+
+  // SAUVEGARDE AUTOMATIQUE du brouillon à chaque modif tant que le formulaire est ouvert.
+  useEffect(() => {
+    if (!showForm || !brouillonCharge.current) return;
+    try { localStorage.setItem(BROUILLON_KEY, JSON.stringify({ draft, reponses, obsItems, editId })); } catch(_e) {}
+  }, [draft, reponses, obsItems, editId, showForm]);
 
   function save() {
     if (!draft.date) return;
@@ -14459,16 +14491,17 @@ function Audit({ seuilsGlobaux }) {
     const seuilPartiel  = seuilsGlobaux?.audit?.partiel  ?? 60;
     const statut = score>=seuilConforme?"Conforme":score>=seuilPartiel?"Partiel":"Non conforme";
     if (editId) {
-      const updated = {...audits.find(a=>a.id===editId), date:dateFmt, auditeur:draft.auditeur, observations:draft.observations, reponses, obsItems, score, statut};
+      const updated = {...audits.find(a=>a.id===editId), date:dateFmt, auditeur:draft.auditeur, observations:draft.observations, actions_depuis:draft.actionsDepuis, reponses, obsItems, score, statut};
       setAudits(prev=>prev.map(a=>a.id===editId?updated:a));
-      sbUpdate("audits", editId, {date:dateFmt, auditeur:draft.auditeur, observations:draft.observations, reponses:JSON.stringify(reponses), score, statut, obs_items:JSON.stringify(obsItems)});
+      sbUpdate("audits", editId, {date:dateFmt, auditeur:draft.auditeur, observations:draft.observations, actions_depuis:draft.actionsDepuis||"", reponses:JSON.stringify(reponses), score, statut, obs_items:JSON.stringify(obsItems)});
     } else {
       const id = String(Date.now());
-      const newAudit = {id, contrat:CLIENT_CONFIG.contrat, date:dateFmt, auditeur:draft.auditeur, observations:draft.observations, reponses, obsItems, score, statut};
+      const newAudit = {id, contrat:CLIENT_CONFIG.contrat, date:dateFmt, auditeur:draft.auditeur, observations:draft.observations, actions_depuis:draft.actionsDepuis, reponses, obsItems, score, statut};
       setAudits(prev=>[newAudit,...prev]);
       const auditData = {
         id, contrat:CLIENT_CONFIG.contrat, date:dateFmt,
         auditeur:draft.auditeur, observations:draft.observations,
+        actions_depuis:draft.actionsDepuis||"",
         reponses:JSON.stringify(reponses),
         obs_items:JSON.stringify(obsItems),
         score, statut
@@ -14497,9 +14530,13 @@ function Audit({ seuilsGlobaux }) {
 
     const scoreCol = scoreColor(a.score||0);
 
-    const conclusionHtml = a.observations
-      ? "<div style='margin-top:16px'><strong>Conclusion :</strong><p style='color:#374151;margin-top:6px'>"+a.observations+"</p></div>"
-      : "";
+    // Met en forme un texte pour le PDF : échappe le HTML et conserve les sauts de
+    // ligne / paragraphes saisis (white-space:pre-wrap), pour un rendu fidèle.
+    const escTxt = t => String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const blocTexte = (titre, txt) => txt ? "<div style='margin-top:16px'><strong>"+titre+" :</strong><div style='color:#374151;margin-top:6px;white-space:pre-wrap;line-height:1.55'>"+escTxt(txt)+"</div></div>" : "";
+
+    const actionsDepuisHtml = blocTexte("Actions depuis le dernier audit", a.actions_depuis||a.actionsDepuis);
+    const conclusionHtml = blocTexte("Conclusion", a.observations);
 
     const obsHtml = (a.obsItems||[]).length > 0
       ? "<div style='margin-top:20px'><h2 style='color:#0f2864;border-bottom:2px solid #0f2864;padding-bottom:6px'>Observations</h2>" +
@@ -14507,8 +14544,8 @@ function Audit({ seuilsGlobaux }) {
           const statCol = obs.statut==="Non conforme" ? "#ef4444" : "#f59e0b";
           const PCOL = { haute:"#ef4444", moyenne:"#f59e0b", basse:"#3b82f6" };
           const prioHtml = obs.priorite ? "<span style='font-weight:700;color:"+(PCOL[obs.priorite]||"#6b7280")+";margin-left:10px;text-transform:uppercase;font-size:11px'>"+obs.priorite+"</span>" : "";
-          const descHtml = obs.description ? "<p style='margin:4px 0;color:#374151'><strong>Description :</strong> "+obs.description+"</p>" : "";
-          const actHtml = obs.action ? "<p style='margin:4px 0;color:#374151'><strong>Action corrective :</strong> "+obs.action+"</p>" : "";
+          const descHtml = obs.description ? "<div style='margin:4px 0;color:#374151;white-space:pre-wrap;line-height:1.5'><strong>Description :</strong> "+escTxt(obs.description)+"</div>" : "";
+          const actHtml = obs.action ? "<div style='margin:4px 0;color:#374151;white-space:pre-wrap;line-height:1.5'><strong>Action corrective :</strong> "+escTxt(obs.action)+"</div>" : "";
           const picsHtml = (obs.photos||[]).length > 0
             ? "<div style='margin-top:8px'>"+(obs.photos||[]).map(function(p){ return "<img src=\""+p.url+"\" style=\"max-width:150px;max-height:120px;border-radius:5px;margin:3px;object-fit:cover;border:1px solid #e5e7eb\"/>"; }).join("")+"</div>"
             : "";
@@ -14530,6 +14567,7 @@ function Audit({ seuilsGlobaux }) {
         "</div>" +
       "</div>" +
       "<table style='width:100%;border-collapse:collapse;margin-bottom:16px'>"+photosRows+"</table>" +
+      actionsDepuisHtml +
       conclusionHtml +
       obsHtml
     );
@@ -14712,6 +14750,10 @@ function Audit({ seuilsGlobaux }) {
             </button>
           </div>
           <div style={{marginBottom:12}}>
+            <label style={{fontSize:10,color:"var(--text-label)",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Actions depuis le dernier audit</label>
+            <textarea rows={3} value={draft.actionsDepuis} onChange={e=>setDraft(p=>({...p,actionsDepuis:e.target.value}))} placeholder="Actions réalisées / suivies depuis le précédent audit..." style={{...inp(),resize:"vertical"}}/>
+          </div>
+          <div style={{marginBottom:12}}>
             <label style={{fontSize:10,color:"var(--text-label)",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Conclusion</label>
             <textarea rows={3} value={draft.observations} onChange={e=>setDraft(p=>({...p,observations:e.target.value}))} style={{...inp(),resize:"vertical"}}/>
           </div>
@@ -14779,7 +14821,8 @@ function Audit({ seuilsGlobaux }) {
                     })}
                   </div>
                 ))}
-                {a.observations&&<div style={{marginTop:8,fontSize:12,color:"var(--text-muted)"}}><strong style={{color:"var(--text-label)"}}>Conclusion :</strong> {a.observations}</div>}
+                {(a.actions_depuis||a.actionsDepuis)&&<div style={{marginTop:8,fontSize:12,color:"var(--text-muted)",whiteSpace:"pre-wrap"}}><strong style={{color:"var(--text-label)"}}>Actions depuis le dernier audit :</strong> {a.actions_depuis||a.actionsDepuis}</div>}
+                {a.observations&&<div style={{marginTop:8,fontSize:12,color:"var(--text-muted)",whiteSpace:"pre-wrap"}}><strong style={{color:"var(--text-label)"}}>Conclusion :</strong> {a.observations}</div>}
                 {(a.obsItems||[]).length>0&&(
                   <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid var(--border)"}}>
                     <div style={{fontSize:10,fontWeight:700,color:"#3b82f6",textTransform:"uppercase",marginBottom:8}}>Observations ({a.obsItems.length})</div>
