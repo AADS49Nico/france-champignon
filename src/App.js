@@ -14309,6 +14309,18 @@ function AuditObservationsParZoneChart({ audits }) {
 }
 
 // ============================================================
+// Brouillon d'audit gardé EN MÉMOIRE (module-level) : survit aux changements d'onglet
+// de façon SYNCHRONE, sans dépendre de l'asynchrone IndexedDB. Remis à null quand
+// l'audit est enregistré ou annulé.
+let __AUDIT_BROUILLON = null; // { key, data:{draft,reponses,obsItems,editId} }
+function __auditBrouillonVide(d) {
+  if (!d) return true;
+  const dr = d.draft || {};
+  const texteVide = !dr.date && !dr.auditeur && !dr.observations && !dr.actionsDepuis;
+  const repVide = !d.reponses || Object.keys(d.reponses).length === 0;
+  const obsVide = !d.obsItems || d.obsItems.length === 0;
+  return texteVide && repVide && obsVide;
+}
 function Audit({ seuilsGlobaux }) {
   const TECHNICIENS = useTechniciens();
 
@@ -14476,6 +14488,7 @@ function Audit({ seuilsGlobaux }) {
     setObsItems([]);
     setEditId(null);
     setBrouillonDispo(null);
+    __AUDIT_BROUILLON = null;
     saveCacheData(BROUILLON_KEY, null).catch(()=>{});
   }
 
@@ -14487,47 +14500,53 @@ function Audit({ seuilsGlobaux }) {
     setShowForm(true);
   }
 
-  // RÉCUPÉRATION : au montage (ou retour sur l'onglet), si un brouillon d'audit non
-  // enregistré existe, on le restaure et on rouvre le formulaire. Stockage IndexedDB
-  // (grande capacité) pour supporter les photos sans jamais tronquer -> rien ne se perd.
-  useEffect(() => {
-    if (brouillonCharge.current) return;
-    brouillonCharge.current = true;
-    getCacheData(BROUILLON_KEY).then(b => {
-      if (!b) return;
-      // Ne JAMAIS écraser automatiquement : on propose une bannière "Reprendre".
-      if (showFormRef.current) return;
-      const vide = (!b.draft || (!b.draft.date && !b.draft.auditeur && !b.draft.observations && !b.draft.actionsDepuis))
-        && (!b.reponses || Object.keys(b.reponses).length === 0)
-        && (!b.obsItems || b.obsItems.length === 0);
-      if (vide) { saveCacheData(BROUILLON_KEY, null).catch(()=>{}); return; }
-      setBrouillonDispo(b);
-    }).catch(()=>{});
-  }, []);
-
-  // Reprise explicite du brouillon (clic utilisateur) : aucun risque d'écraser une saisie.
-  function reprendreBrouillon() {
-    const b = brouillonDispo; if (!b) return;
+  function appliquerBrouillon(b) {
     setDraft({ date:(b.draft&&b.draft.date)||"", auditeur:(b.draft&&b.draft.auditeur)||"", observations:(b.draft&&b.draft.observations)||"", actionsDepuis:(b.draft&&b.draft.actionsDepuis)||"" });
     setReponses(b.reponses || {});
     setObsItems(b.obsItems || []);
     setEditId(b.editId || null);
-    setBrouillonDispo(null);
     setShowForm(true);
+  }
+
+  // RÉCUPÉRATION au montage (retour sur l'onglet) :
+  // 1) D'abord la mémoire SYNCHRONE (survit au changement d'onglet dans la même session) :
+  //    on rouvre le formulaire immédiatement avec tout -> aucune course asynchrone.
+  // 2) Sinon, après un rechargement complet de la page, on lit IndexedDB et on propose
+  //    une bannière "Reprendre" (asynchrone, donc non-destructif via bouton).
+  useEffect(() => {
+    if (brouillonCharge.current) return;
+    brouillonCharge.current = true;
+    if (__AUDIT_BROUILLON && __AUDIT_BROUILLON.key === BROUILLON_KEY && !__auditBrouillonVide(__AUDIT_BROUILLON.data)) {
+      appliquerBrouillon(__AUDIT_BROUILLON.data);
+      return;
+    }
+    getCacheData(BROUILLON_KEY).then(b => {
+      if (!b || __auditBrouillonVide(b) || showFormRef.current) return;
+      setBrouillonDispo(b);
+    }).catch(()=>{});
+  }, []);
+
+  function reprendreBrouillon() {
+    const b = brouillonDispo; if (!b) return;
+    appliquerBrouillon(b);
+    setBrouillonDispo(null);
   }
   function supprimerBrouillon() {
     setBrouillonDispo(null);
+    __AUDIT_BROUILLON = null;
     saveCacheData(BROUILLON_KEY, null).catch(()=>{});
   }
 
-  // SAUVEGARDE AUTOMATIQUE du brouillon à CHAQUE modif tant que le formulaire est ouvert
-  // (IndexedDB : jamais d'échec de quota, donc le brouillon contient toujours tout).
+  // SAUVEGARDE AUTOMATIQUE à CHAQUE modif tant que le formulaire est ouvert :
+  // - en MÉMOIRE (synchrone) pour le changement d'onglet,
+  // - en IndexedDB pour survivre à un rechargement complet (photos incluses).
   useEffect(() => {
     if (!showForm || !brouillonCharge.current) return;
-    saveCacheData(BROUILLON_KEY, { draft, reponses, obsItems, editId }).catch(()=>{});
+    const data = { draft, reponses, obsItems, editId };
+    __AUDIT_BROUILLON = { key: BROUILLON_KEY, data };
+    saveCacheData(BROUILLON_KEY, data).catch(()=>{});
   }, [draft, reponses, obsItems, editId, showForm]);
 
-  // Garde showFormRef à jour (utilisé par la restauration asynchrone ci-dessus).
   useEffect(() => { showFormRef.current = showForm; }, [showForm]);
 
   function save() {
