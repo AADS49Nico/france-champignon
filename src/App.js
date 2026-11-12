@@ -311,7 +311,7 @@ async function sbGet(table, select) {
   }
   return all;
 }
-async function sbUpsert(table, data) {
+async function sbUpsert(table, data, opts) {
   if (tableParSite(table) && !SITE_ACTIF) {
     console.error("Ecriture refusee sur " + table + " : aucun site actif. La ligne serait orpheline.");
     return null;
@@ -319,10 +319,14 @@ async function sbUpsert(table, data) {
   const d = !tableParSite(table) ? data
     : Array.isArray(data) ? data.map(x => ({ ...x, site: (x && x.site) || SITE_ACTIF }))
     : { ...data, site: (data && data.site) || SITE_ACTIF };
-  return sbFetch(table, "POST", d, { Prefer: "resolution=merge-duplicates,return=representation" });
+  // return=minimal : ne renvoie pas la ligne ecrite (evite de re-serialiser de
+  // grosses lignes, ex: audits avec photos base64 -> plus de statement timeout).
+  const ret = (opts && opts.minimal) ? "return=minimal" : "return=representation";
+  return sbFetch(table, "POST", d, { Prefer: "resolution=merge-duplicates," + ret });
 }
-async function sbUpdate(table, id, data) {
-  return sbFetch(table + "?id=eq." + id + (estReferentiel(table) ? "" : "&contrat=eq." + CLIENT_CONFIG.contrat + filtreSite(table)), "PATCH", data, { Prefer: "return=representation" });
+async function sbUpdate(table, id, data, opts) {
+  const ret = (opts && opts.minimal) ? "return=minimal" : "return=representation";
+  return sbFetch(table + "?id=eq." + id + (estReferentiel(table) ? "" : "&contrat=eq." + CLIENT_CONFIG.contrat + filtreSite(table)), "PATCH", data, { Prefer: ret });
 }
 // Variante stricte : leve une exception en cas d'echec HTTP reel, avec le detail de l'erreur Supabase.
 // A utiliser uniquement la ou l'appelant gere explicitement l'echec (ex: ajout de postes sur un plan).
@@ -14580,7 +14584,8 @@ function Audit({ seuilsGlobaux }) {
     if (editId) {
       const updated = {...audits.find(a=>a.id===editId), date:dateFmt, auditeur:draft.auditeur, observations:draft.observations, actions_depuis:draft.actionsDepuis, reponses, obsItems, score, statut};
       setAudits(prev=>prev.map(a=>a.id===editId?updated:a));
-      sbUpdate("audits", editId, {date:dateFmt, auditeur:draft.auditeur, observations:draft.observations, actions_depuis:draft.actionsDepuis||"", reponses:JSON.stringify(reponses), score, statut, obs_items:JSON.stringify(obsItems)});
+      sbUpdate("audits", editId, {date:dateFmt, auditeur:draft.auditeur, observations:draft.observations, actions_depuis:draft.actionsDepuis||"", reponses:JSON.stringify(reponses), score, statut, obs_items:JSON.stringify(obsItems)}, {minimal:true})
+        .catch(e=>{ console.error("Audit update error:", e); alert("L'enregistrement de l'audit a échoué (réseau ou délai dépassé). Vérifiez la connexion et réessayez."); });
     } else {
       const id = String(Date.now());
       const newAudit = {id, contrat:CLIENT_CONFIG.contrat, date:dateFmt, auditeur:draft.auditeur, observations:draft.observations, actions_depuis:draft.actionsDepuis, reponses, obsItems, score, statut};
@@ -14594,7 +14599,7 @@ function Audit({ seuilsGlobaux }) {
         score, statut
       };
       if (navigator.onLine) {
-        sbUpsert("audits", auditData).catch(e=>console.error("Audit save error:", e));
+        sbUpsert("audits", auditData, {minimal:true}).catch(e=>{ console.error("Audit save error:", e); alert("L'enregistrement de l'audit a échoué (réseau ou délai dépassé). Vérifiez la connexion et réessayez."); });
       } else {
         savePendingSaisie({ id:"pending_audit_"+id, data:auditData, table:"audits" }).then(()=>{
           if (window.__setPendingCount) getPendingSaisies().then(p=>window.__setPendingCount(p.length)).catch(()=>{});
