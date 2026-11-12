@@ -14395,15 +14395,19 @@ function Audit({ seuilsGlobaux }) {
   const NOTES = { "Conforme": 2, "Partiel": 1, "Non conforme": 0, "Non applicable": null };
   const NOTE_COL = { "Conforme": "#22c55e", "Partiel": "#f59e0b", "Non conforme": "#ef4444", "Non applicable": "var(--text-label)" };
 
-  const [audits, setAudits] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [draft, setDraft] = useState({ date:"", auditeur:"", observations:"", actionsDepuis:"" });
-  const [obsItems, setObsItems] = useState([]); // observations dynamiques
-  const [reponses, setReponses] = useState({});
-  const [editId, setEditId] = useState(null);
   // Brouillon d'audit en cours : sauvegarde locale pour tout récupérer si on quitte
   // l'audit (saisie mobile) avant d'avoir enregistré.
   const BROUILLON_KEY = "aads_audit_brouillon_" + (CLIENT_CONFIG.contrat || "x");
+  // MÉMOIRE SYNCHRONE : si un brouillon est en cours pour CE contrat, on initialise
+  // DIRECTEMENT l'état avec (survit au changement d'onglet = démontage du composant,
+  // aucune course asynchrone, rien ne disparaît).
+  const __bro = (__AUDIT_BROUILLON && __AUDIT_BROUILLON.key === BROUILLON_KEY && !__auditBrouillonVide(__AUDIT_BROUILLON.data)) ? __AUDIT_BROUILLON.data : null;
+  const [audits, setAudits] = useState([]);
+  const [showForm, setShowForm] = useState(!!__bro);
+  const [draft, setDraft] = useState(() => (__bro && __bro.draft) ? { date:__bro.draft.date||"", auditeur:__bro.draft.auditeur||"", observations:__bro.draft.observations||"", actionsDepuis:__bro.draft.actionsDepuis||"" } : { date:"", auditeur:"", observations:"", actionsDepuis:"" });
+  const [obsItems, setObsItems] = useState(() => (__bro && Array.isArray(__bro.obsItems)) ? __bro.obsItems : []); // observations dynamiques
+  const [reponses, setReponses] = useState(() => (__bro && __bro.reponses) ? __bro.reponses : {});
+  const [editId, setEditId] = useState(() => (__bro && __bro.editId) ? __bro.editId : null);
   const brouillonCharge = React.useRef(false);
   // Suit l'état d'ouverture du formulaire pour la restauration asynchrone : si tu as
   // déjà ouvert/saisi un audit, on ne doit PAS écraser avec un ancien brouillon.
@@ -14516,10 +14520,10 @@ function Audit({ seuilsGlobaux }) {
   useEffect(() => {
     if (brouillonCharge.current) return;
     brouillonCharge.current = true;
-    if (__AUDIT_BROUILLON && __AUDIT_BROUILLON.key === BROUILLON_KEY && !__auditBrouillonVide(__AUDIT_BROUILLON.data)) {
-      appliquerBrouillon(__AUDIT_BROUILLON.data);
-      return;
-    }
+    // Cas changement d'onglet : déjà géré SYNCHRONEMENT par l'init direct de l'état (__bro).
+    if (__bro) return;
+    // Cas rechargement complet de la page (la mémoire synchrone est perdue) : le brouillon
+    // est dans IndexedDB -> on propose une bannière "Reprendre" (non destructif).
     getCacheData(BROUILLON_KEY).then(b => {
       if (!b || __auditBrouillonVide(b) || showFormRef.current) return;
       setBrouillonDispo(b);
@@ -14540,8 +14544,10 @@ function Audit({ seuilsGlobaux }) {
   // SAUVEGARDE AUTOMATIQUE à CHAQUE modif tant que le formulaire est ouvert :
   // - en MÉMOIRE (synchrone) pour le changement d'onglet,
   // - en IndexedDB pour survivre à un rechargement complet (photos incluses).
-  useEffect(() => {
-    if (!showForm || !brouillonCharge.current) return;
+  // useLayoutEffect = synchrone : le miroir vers __AUDIT_BROUILLON est écrit AVANT que
+  // React démonte le composant (changement d'onglet) -> jamais de perte, même mobile.
+  React.useLayoutEffect(() => {
+    if (!showForm) return;
     const data = { draft, reponses, obsItems, editId };
     __AUDIT_BROUILLON = { key: BROUILLON_KEY, data };
     saveCacheData(BROUILLON_KEY, data).catch(()=>{});
@@ -14824,7 +14830,7 @@ function Audit({ seuilsGlobaux }) {
                 </div>
               </div>
             ))}
-            <button onClick={()=>setObsItems(prev=>[...prev,{id:String(Date.now()),zone:"",statut:"Non conforme",priorite:"moyenne",description:"",action:"",photos:[]}])}
+            <button onClick={()=>setObsItems(prev=>[...prev,{id:"obs_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),zone:"",statut:"Non conforme",priorite:"moyenne",description:"",action:"",photos:[]}])}
               style={{background:"var(--bg-2)",color:"#3b82f6",border:"1px dashed #3b82f644",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>
               + Ajouter une observation
             </button>
