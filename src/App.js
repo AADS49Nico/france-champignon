@@ -14393,6 +14393,10 @@ function Audit({ seuilsGlobaux }) {
   // l'audit (saisie mobile) avant d'avoir enregistré.
   const BROUILLON_KEY = "aads_audit_brouillon_" + (CLIENT_CONFIG.contrat || "x");
   const brouillonCharge = React.useRef(false);
+  // Suit l'état d'ouverture du formulaire pour la restauration asynchrone : si tu as
+  // déjà ouvert/saisi un audit, on ne doit PAS écraser avec un ancien brouillon.
+  const showFormRef = React.useRef(false);
+  const [brouillonDispo, setBrouillonDispo] = useState(null); // brouillon récupérable (bannière)
   const [sel, setSel] = useState(null);
   const [actionsStatuts, setActionsStatuts] = useState({}); // { actionId: statut } pour le badge de suivi
   const [creatingAction, setCreatingAction] = useState(null); // id de l'observation en cours de creation
@@ -14471,6 +14475,7 @@ function Audit({ seuilsGlobaux }) {
     setReponses({});
     setObsItems([]);
     setEditId(null);
+    setBrouillonDispo(null);
     saveCacheData(BROUILLON_KEY, null).catch(()=>{});
   }
 
@@ -14490,17 +14495,30 @@ function Audit({ seuilsGlobaux }) {
     brouillonCharge.current = true;
     getCacheData(BROUILLON_KEY).then(b => {
       if (!b) return;
+      // Ne JAMAIS écraser automatiquement : on propose une bannière "Reprendre".
+      if (showFormRef.current) return;
       const vide = (!b.draft || (!b.draft.date && !b.draft.auditeur && !b.draft.observations && !b.draft.actionsDepuis))
         && (!b.reponses || Object.keys(b.reponses).length === 0)
         && (!b.obsItems || b.obsItems.length === 0);
-      if (vide) return;
-      setDraft({ date:(b.draft&&b.draft.date)||"", auditeur:(b.draft&&b.draft.auditeur)||"", observations:(b.draft&&b.draft.observations)||"", actionsDepuis:(b.draft&&b.draft.actionsDepuis)||"" });
-      setReponses(b.reponses || {});
-      setObsItems(b.obsItems || []);
-      setEditId(b.editId || null);
-      setShowForm(true);
+      if (vide) { saveCacheData(BROUILLON_KEY, null).catch(()=>{}); return; }
+      setBrouillonDispo(b);
     }).catch(()=>{});
   }, []);
+
+  // Reprise explicite du brouillon (clic utilisateur) : aucun risque d'écraser une saisie.
+  function reprendreBrouillon() {
+    const b = brouillonDispo; if (!b) return;
+    setDraft({ date:(b.draft&&b.draft.date)||"", auditeur:(b.draft&&b.draft.auditeur)||"", observations:(b.draft&&b.draft.observations)||"", actionsDepuis:(b.draft&&b.draft.actionsDepuis)||"" });
+    setReponses(b.reponses || {});
+    setObsItems(b.obsItems || []);
+    setEditId(b.editId || null);
+    setBrouillonDispo(null);
+    setShowForm(true);
+  }
+  function supprimerBrouillon() {
+    setBrouillonDispo(null);
+    saveCacheData(BROUILLON_KEY, null).catch(()=>{});
+  }
 
   // SAUVEGARDE AUTOMATIQUE du brouillon à CHAQUE modif tant que le formulaire est ouvert
   // (IndexedDB : jamais d'échec de quota, donc le brouillon contient toujours tout).
@@ -14508,6 +14526,9 @@ function Audit({ seuilsGlobaux }) {
     if (!showForm || !brouillonCharge.current) return;
     saveCacheData(BROUILLON_KEY, { draft, reponses, obsItems, editId }).catch(()=>{});
   }, [draft, reponses, obsItems, editId, showForm]);
+
+  // Garde showFormRef à jour (utilisé par la restauration asynchrone ci-dessus).
+  useEffect(() => { showFormRef.current = showForm; }, [showForm]);
 
   function save() {
     if (!draft.date) return;
@@ -14615,6 +14636,18 @@ function Audit({ seuilsGlobaux }) {
           + Nouvel audit
         </button>
       </div>
+
+      {brouillonDispo && !showForm && (
+        <div style={{background:"#f59e0b22",border:"1px solid #f59e0b66",borderRadius:12,padding:"12px 18px",marginBottom:16,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:20}}>📝</span>
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{fontSize:13,fontWeight:700,color:"#f59e0b",marginBottom:2}}>Audit en cours non enregistré</div>
+            <div style={{fontSize:12,color:"var(--text-muted)"}}>Un audit que tu avais commencé n'a pas été enregistré. Tu peux le reprendre là où tu en étais.</div>
+          </div>
+          <button onClick={reprendreBrouillon} style={{background:"#f59e0b",color:"#000",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Reprendre l'audit</button>
+          <button onClick={supprimerBrouillon} style={{background:"transparent",color:"var(--text-label)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Supprimer</button>
+        </div>
+      )}
 
       <div style={{background:"#1e3a5f22",border:"1px solid #3b82f633",borderRadius:12,padding:"12px 18px",marginBottom:20,display:"flex",gap:12,alignItems:"flex-start"}}>
         <span style={{fontSize:20}}>📋</span>
