@@ -7601,7 +7601,12 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
   const [form, setForm]       = useState({ date:"", technicien:"", type:"Rongeurs", notes:"" });
   const [saisies, setSaisies] = useState({});
   const [postes, setPostes]   = useState(POSTES_INIT);
-  const [produitsBiocides, setProduitsBiocides] = useState([]);
+  // Liste des produits biocides = identique a l'onglet "Produits biocides" (meme table,
+  // meme init par defaut) -> les dropdowns de saisie proposent toujours tous les produits.
+  const [produitsBiocides, setProduitsBiocides] = useState(PRODUITS.map(p => ({...p, id: String(p.id)})));
+  // SNAPSHOT de la molecule precedente par poste, figee a l'ouverture de la saisie :
+  // choisir une nouvelle molecule ne doit PAS modifier l'affichage "ancienne molecule".
+  const ancMolRef = React.useRef({});
   const [showReinvForm, setShowReinvForm] = useState(false);
   const [reinvForm, setReinvForm] = useState({ date:"", technicien:"", poste:"", anomalie:"", statut:"En cours", observations:"", actions:[] });
   const [reinvPhotos, setReinvPhotos] = useState([]);
@@ -7651,6 +7656,14 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
     });
     sbGet("produits_biocides").then(data => { if(data&&data.length>0) setProduitsBiocides(data); }).catch(()=>{});
   }, []);
+
+  // Fige la molecule precedente de chaque poste (premiere valeur vue). Les mises a jour
+  // ulterieures de molecule_actuelle (choix d'une nouvelle molecule) ne l'ecrasent pas.
+  useEffect(() => {
+    postes.forEach(p => {
+      if (ancMolRef.current[p.id] === undefined) ancMolRef.current[p.id] = p.molecule_actuelle || "Placebo";
+    });
+  }, [postes]);
 
   // Passage courant reconstitué depuis le formulaire (pour générer la fiche PDF)
   function passageCourantFiche() {
@@ -8048,25 +8061,25 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               <div>
                 <label style={{fontSize:10,color:"var(--text-label)",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Captures min rouge</label>
-                <input type="number" min="0" value={seuils.rongeurs.capture_rouge}
+                <input type="number" min="0" value={(seuils.rongeurs||{}).capture_rouge}
                   onChange={e=>setSeuils(prev=>({...prev,rongeurs:{...prev.rongeurs,capture_rouge:parseInt(e.target.value)||0}}))}
                   style={{...inpStyle,width:80}}/>
               </div>
               <div>
                 <label style={{fontSize:10,color:"var(--text-label)",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Taux activite vigilance (%)</label>
-                <input type="number" min="0" max="100" value={seuils.rongeurs.taux_vigilance ?? 5}
+                <input type="number" min="0" max="100" value={(seuils.rongeurs||{}).taux_vigilance ?? 5}
                   onChange={e=>setSeuils(prev=>({...prev,rongeurs:{...prev.rongeurs,taux_vigilance:parseInt(e.target.value)||0}}))}
                   style={{...inpStyle,width:80}}/>
               </div>
               <div>
                 <label style={{fontSize:10,color:"var(--text-label)",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Taux activite critique (%)</label>
-                <input type="number" min="0" max="100" value={seuils.rongeurs.taux_critique ?? 10}
+                <input type="number" min="0" max="100" value={(seuils.rongeurs||{}).taux_critique ?? 10}
                   onChange={e=>setSeuils(prev=>({...prev,rongeurs:{...prev.rongeurs,taux_critique:parseInt(e.target.value)||0}}))}
                   style={{...inpStyle,width:80}}/>
               </div>
               <div>
                 <label style={{fontSize:10,color:"#f59e0b",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Conso. appât → Orange</label>
-                <select value={seuils.rongeurs.conso_orange||"25%"}
+                <select value={(seuils.rongeurs||{}).conso_orange||"25%"}
                   onChange={e=>setSeuils(prev=>({...prev,rongeurs:{...prev.rongeurs,conso_orange:e.target.value}}))}
                   style={{...inpStyle,width:100}}>
                   <option value="25%">25%</option>
@@ -8076,7 +8089,7 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
               </div>
               <div>
                 <label style={{fontSize:10,color:"#ef4444",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Conso. appât → Rouge</label>
-                <select value={seuils.rongeurs.conso_rouge||"75%"}
+                <select value={(seuils.rongeurs||{}).conso_rouge||"75%"}
                   onChange={e=>setSeuils(prev=>({...prev,rongeurs:{...prev.rongeurs,conso_rouge:e.target.value}}))}
                   style={{...inpStyle,width:100}}>
                   <option value="50%">50%</option>
@@ -8145,13 +8158,13 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               <div>
                 <label style={{fontSize:10,color:"var(--text-label)",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Orange min</label>
-                <input type="number" min="0" value={seuils.blattes.leger}
+                <input type="number" min="0" value={(seuils.blattes||{}).leger}
                   onChange={e=>setSeuils(prev=>({...prev,blattes:{...prev.blattes,leger:parseInt(e.target.value)||0}}))}
                   style={{...inpStyle,width:80}}/>
               </div>
               <div>
                 <label style={{fontSize:10,color:"var(--text-label)",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Rouge min</label>
-                <input type="number" min="0" value={seuils.blattes.moyen}
+                <input type="number" min="0" value={(seuils.blattes||{}).moyen}
                   onChange={e=>setSeuils(prev=>({...prev,blattes:{...prev.blattes,moyen:parseInt(e.target.value)||0}}))}
                   style={{...inpStyle,width:80}}/>
               </div>
@@ -8162,13 +8175,13 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               <div>
                 <label style={{fontSize:10,color:"var(--text-label)",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Orange min</label>
-                <input type="number" min="0" value={seuils.teignes.leger}
+                <input type="number" min="0" value={(seuils.teignes||{}).leger}
                   onChange={e=>setSeuils(prev=>({...prev,teignes:{...prev.teignes,leger:parseInt(e.target.value)||0}}))}
                   style={{...inpStyle,width:80}}/>
               </div>
               <div>
                 <label style={{fontSize:10,color:"var(--text-label)",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Rouge min</label>
-                <input type="number" min="0" value={seuils.teignes.moyen}
+                <input type="number" min="0" value={(seuils.teignes||{}).moyen}
                   onChange={e=>setSeuils(prev=>({...prev,teignes:{...prev.teignes,moyen:parseInt(e.target.value)||0}}))}
                   style={{...inpStyle,width:80}}/>
               </div>
@@ -8183,13 +8196,13 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
                   <div style={{display:"flex",gap:8}}>
                     <div style={{flex:1}}>
                       <label style={{fontSize:9,color:"var(--text-label)",display:"block",marginBottom:2}}>Orange min</label>
-                      <input type="number" min="0" value={(seuils.iv[cat]||{}).leger||0}
+                      <input type="number" min="0" value={((seuils.iv||{})[cat]||{}).leger||0}
                         onChange={e=>setSeuils(prev=>({...prev,iv:{...prev.iv,[cat]:{...(prev.iv[cat]||{}),leger:parseInt(e.target.value)||0}}}))}
                         style={{...inpStyle,fontSize:11,padding:"3px 6px",width:60}}/>
                     </div>
                     <div style={{flex:1}}>
                       <label style={{fontSize:9,color:"var(--text-label)",display:"block",marginBottom:2}}>Rouge min</label>
-                      <input type="number" min="0" value={(seuils.iv[cat]||{}).moyen||0}
+                      <input type="number" min="0" value={((seuils.iv||{})[cat]||{}).moyen||0}
                         onChange={e=>setSeuils(prev=>({...prev,iv:{...prev.iv,[cat]:{...(prev.iv[cat]||{}),moyen:parseInt(e.target.value)||0}}}))}
                         style={{...inpStyle,fontSize:11,padding:"3px 6px",width:60}}/>
                     </div>
@@ -8203,13 +8216,13 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               <div>
                 <label style={{fontSize:10,color:"var(--text-label)",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Orange min</label>
-                <input type="number" min="0" value={seuils.ips.leger}
+                <input type="number" min="0" value={(seuils.ips||{}).leger}
                   onChange={e=>setSeuils(prev=>({...prev,ips:{...prev.ips,leger:parseInt(e.target.value)||0}}))}
                   style={{...inpStyle,width:80}}/>
               </div>
               <div>
                 <label style={{fontSize:10,color:"var(--text-label)",fontWeight:600,textTransform:"uppercase",display:"block",marginBottom:3}}>Rouge min</label>
-                <input type="number" min="0" value={seuils.ips.moyen}
+                <input type="number" min="0" value={(seuils.ips||{}).moyen}
                   onChange={e=>setSeuils(prev=>({...prev,ips:{...prev.ips,moyen:parseInt(e.target.value)||0}}))}
                   style={{...inpStyle,width:80}}/>
               </div>
@@ -8366,7 +8379,7 @@ function SaisiePassage({ seuilsGlobaux, setSeuilsGlobaux, setReinterventions, se
                       <div>
                         <div style={{ marginBottom:12 }}>
                           <label style={{ fontSize:10, color:"var(--text-label)", fontWeight:700, display:"block", marginBottom:4 }}>ANCIENNE MOLECULE (derniere connue)</label>
-                          <div style={{ background:"var(--bg-1)", border:"1px solid var(--border)", borderRadius:8, padding:"9px 12px", color:"var(--text-muted)", fontSize:13 }}>{poste.molecule_actuelle || "Placebo"}</div>
+                          <div style={{ background:"var(--bg-1)", border:"1px solid var(--border)", borderRadius:8, padding:"9px 12px", color:"var(--text-muted)", fontSize:13 }}>{(ancMolRef.current[poste.id] !== undefined ? ancMolRef.current[poste.id] : (poste.molecule_actuelle || "Placebo"))}</div>
                         </div>
                         <div style={{ marginBottom:14 }}>
                           <label style={{ fontSize:10, color:"var(--text-label)", fontWeight:700, display:"block", marginBottom:4 }}>NOUVELLE MOLECULE</label>
@@ -15828,7 +15841,21 @@ function AppPortail({ isAdmin, onLogout, aadsTheme, onToggleTheme }) {
     sbGet("seuils").then(data => {
       if (data && data.length > 0 && data[0].data) {
         const parsed = typeof data[0].data === "string" ? JSON.parse(data[0].data) : data[0].data;
-        setSeuilsGlobauxState(parsed);
+        // FUSION avec les valeurs par defaut : un enregistrement ancien peut ne pas
+        // contenir toutes les cles (iv, teignes, audit, rongeursExt...). Sans fusion,
+        // l'onglet Seuils plante (ecran blanc) en lisant une cle absente.
+        setSeuilsGlobauxState(prev => ({
+          ...prev,
+          ...parsed,
+          rongeurs:    { ...prev.rongeurs,    ...(parsed.rongeurs||{}) },
+          rongeursExt: { ...prev.rongeursExt, ...(parsed.rongeursExt||{}) },
+          rongeursInt: { ...prev.rongeursInt, ...(parsed.rongeursInt||{}) },
+          audit:       { ...prev.audit,       ...(parsed.audit||{}) },
+          blattes:     { ...prev.blattes,     ...(parsed.blattes||{}) },
+          teignes:     { ...prev.teignes,     ...(parsed.teignes||{}) },
+          ips:         { ...prev.ips,         ...(parsed.ips||{}) },
+          iv:          { ...prev.iv,          ...(parsed.iv||{}) },
+        }));
       }
     }).catch(()=>{});
   }, []);
