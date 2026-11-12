@@ -14471,7 +14471,7 @@ function Audit({ seuilsGlobaux }) {
     setReponses({});
     setObsItems([]);
     setEditId(null);
-    try { localStorage.removeItem(BROUILLON_KEY); } catch(_e) {}
+    saveCacheData(BROUILLON_KEY, null).catch(()=>{});
   }
 
   function openEdit(a) {
@@ -14482,31 +14482,31 @@ function Audit({ seuilsGlobaux }) {
     setShowForm(true);
   }
 
-  // RÉCUPÉRATION : au montage, si un brouillon d'audit non enregistré existe, on le
-  // restaure et on rouvre le formulaire (on ne perd rien en quittant/revenant).
+  // RÉCUPÉRATION : au montage (ou retour sur l'onglet), si un brouillon d'audit non
+  // enregistré existe, on le restaure et on rouvre le formulaire. Stockage IndexedDB
+  // (grande capacité) pour supporter les photos sans jamais tronquer -> rien ne se perd.
   useEffect(() => {
     if (brouillonCharge.current) return;
     brouillonCharge.current = true;
-    try {
-      const raw = localStorage.getItem(BROUILLON_KEY);
-      if (!raw) return;
-      const b = JSON.parse(raw);
+    getCacheData(BROUILLON_KEY).then(b => {
+      if (!b) return;
       const vide = (!b.draft || (!b.draft.date && !b.draft.auditeur && !b.draft.observations && !b.draft.actionsDepuis))
         && (!b.reponses || Object.keys(b.reponses).length === 0)
         && (!b.obsItems || b.obsItems.length === 0);
-      if (vide) { localStorage.removeItem(BROUILLON_KEY); return; }
+      if (vide) return;
       setDraft({ date:(b.draft&&b.draft.date)||"", auditeur:(b.draft&&b.draft.auditeur)||"", observations:(b.draft&&b.draft.observations)||"", actionsDepuis:(b.draft&&b.draft.actionsDepuis)||"" });
       setReponses(b.reponses || {});
       setObsItems(b.obsItems || []);
       setEditId(b.editId || null);
       setShowForm(true);
-    } catch(_e) {}
+    }).catch(()=>{});
   }, []);
 
-  // SAUVEGARDE AUTOMATIQUE du brouillon à chaque modif tant que le formulaire est ouvert.
+  // SAUVEGARDE AUTOMATIQUE du brouillon à CHAQUE modif tant que le formulaire est ouvert
+  // (IndexedDB : jamais d'échec de quota, donc le brouillon contient toujours tout).
   useEffect(() => {
     if (!showForm || !brouillonCharge.current) return;
-    try { localStorage.setItem(BROUILLON_KEY, JSON.stringify({ draft, reponses, obsItems, editId })); } catch(_e) {}
+    saveCacheData(BROUILLON_KEY, { draft, reponses, obsItems, editId }).catch(()=>{});
   }, [draft, reponses, obsItems, editId, showForm]);
 
   function save() {
